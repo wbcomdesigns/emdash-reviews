@@ -1,5 +1,7 @@
 # Reviews and Ratings: scope
 
+**Status: LOCKED on 2026-10-13.** Scope and decisions were agreed with the owner. An agent does not add options or features. If a task cannot be done as written, stop, say why on its issue, and wait for the owner.
+
 This file is the contract for the plugin. Code, tests, docs and cards all follow it. If something here is wrong, change it here first, in the same pull request as the code.
 
 ## Purpose
@@ -46,7 +48,14 @@ Settled. Do not reopen these in code review. Dated 2026-10-13 unless noted.
 | Stars without text | Allowed. Text is optional. A star-only rating counts in the average and does not appear in the review list. |
 | What a guest gives | The owner chooses: name only (default), or name and email. An email is never shown publicly. |
 | Wording and language | One wording file per plugin kit. Every visitor-facing phrase lives there, so an owner can translate or reword the plugin by editing one file. |
-| How the owner learns something is waiting | A clear waiting count on the plugin's admin page in 0.1.0. Email alerts in 0.2.0. |
+| How the owner picks what can be reviewed | Tick-boxes of the site's real content types, by their normal names. No typed list. |
+| Long review lists | A bar per star level with counts, 10 reviews at a time with Show more, sort by Newest, Highest or Lowest. |
+| Owner alert | Waiting count in admin, plus at most one email an hour when reviews are waiting. No review text and no link in the email. A switch turns it off. |
+| Reporting a review | Not in the first release. Every review is approved before it shows. |
+| Changing a review | The published review stays live until the change is approved. |
+| Admin layout | Three pages: Waiting, Published, Settings. Each list has Next, Previous and find by text. |
+| Who replies | The site admin, from the admin page. One reply per review. |
+| Setup | One-page developer guide plus one command, same as Listora. |
 
 ## In scope for 0.1.0
 
@@ -76,7 +85,8 @@ Do not build these. If a card seems to need one, stop and ask the owner.
 - Importing reviews from other platforms
 - Verified-buyer badges
 - Any paid or Pro feature
-- Email sending (the host may have no mail configured)
+- Email to reviewers or to anyone but the site admin. The one email this plugin sends is the hourly "reviews are waiting" notice, and only when the site has mail set up
+- A Report link on reviews
 - Portable Text blocks or anything that needs a native plugin
 - Injecting scripts, styles or HTML into pages from the plugin
 - Reply threads (one owner reply only)
@@ -93,7 +103,7 @@ Do not build these. If a card seems to need one, stop and ask the owner.
 
 ## Capabilities
 
-`content:read`
+`content:read`, `schema:read` (to list the site's content types on the Settings page), `email:send` (the hourly notice to the site admin)
 
 Ask for nothing more without the owner's agreement: every capability is shown to the site owner at install.
 
@@ -138,10 +148,12 @@ Row id: `<collection>:<entryId>`. Indexes: `collection`.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `collections` | string | `posts` | Comma-separated collection slugs open for reviews |
+| `collections` | string | `posts` | Content types open for reviews. Set with tick-boxes, stored as a comma list |
 | `require_moderation` | boolean | `true` | Approve reviews before they show |
 | `who` | string | `anyone` | `members` or `anyone` |
 | `ask_guest_email` | boolean | `false` | Ask a guest for an email as well as a name |
+| `notify` | boolean | `true` | Email the site admin when reviews are waiting, at most once an hour |
+| `notify_to` | string | site admin | Where that email goes |
 
 ## Routes
 
@@ -150,7 +162,7 @@ Base: `/_emdash/api/plugins/reviews/<name>`.
 | Route | Who | Methods | Input | Returns |
 | --- | --- | --- | --- | --- |
 | `health` | public | GET | - | `ok`, version, open collections, pending count |
-| `list` | public | GET | `collection`, `id` | Published reviews (author, stars, title, body, createdAt), `average`, `count`. Includes `owner_reply`. Star-only ratings are counted, not listed |
+| `list` | public | GET | `collection`, `id`, `page`, `sort` (newest, highest, lowest). 10 per page, with `total` and the count per star level | Published reviews (author, stars, title, body, createdAt), `average`, `count`. Includes `owner_reply`. Star-only ratings are counted, not listed |
 | `summary` | public | GET | `collection`, `ids` (comma list, 50 max) | `ratings` map of id to `{average, count}` |
 | `write` | member | POST | `collection`, `id`, `stars`, `title`, `body` | `status`: pending or published |
 | `mine` | member | GET, DELETE | - | GET: own reviews with page title and link. DELETE: erase all own reviews |
@@ -169,7 +181,9 @@ Base: `/_emdash/api/plugins/reviews/<name>`.
 
 | Page | What it shows |
 | --- | --- |
-| `/queue` | Stats, waiting table with Approve / Reject, published table with Reply and Remove, a reply form, find-and-delete by guest email, settings form |
+| `/waiting` | Count, waiting table with Approve / Reject, full text, guest marker, pending changes labelled. Next, Previous, find by text |
+| `/published` | Published table with Reply and Remove, the reply form, find-and-delete by guest email. Next, Previous, find by text |
+| `/settings` | Every setting, one line under each saying what it does |
 
 ## Site kit
 

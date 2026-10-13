@@ -1,5 +1,7 @@
 # Plan: Reviews and Ratings
 
+**Status: LOCKED on 2026-10-13.** See the note at the top of `SCOPE.md`.
+
 The plan for this plugin, kept in the repository so it travels with the code. `SCOPE.md` says what the plugin is. This file says in what order it gets built and what waits.
 
 ## Decisions made with the owner
@@ -11,25 +13,43 @@ The plan for this plugin, kept in the repository so it travels with the code. `S
 | Stars without text | Allowed. Text is optional. A star-only rating counts in the average and does not appear in the review list. |
 | What a guest gives | The owner chooses: name only (default), or name and email. An email is never shown publicly. |
 | Wording and language | One wording file per plugin kit. Every visitor-facing phrase lives there, so an owner can translate or reword the plugin by editing one file. |
-| How the owner learns something is waiting | A clear waiting count on the plugin's admin page in 0.1.0. Email alerts in 0.2.0. |
+| How the owner picks what can be reviewed | Tick-boxes of the site's real content types, by their normal names. No typed list. |
+| Long review lists | A bar per star level with counts, 10 reviews at a time with Show more, sort by Newest, Highest or Lowest. |
+| Owner alert | Waiting count in admin, plus at most one email an hour when reviews are waiting. No review text and no link in the email. A switch turns it off. |
+| Reporting a review | Not in the first release. Every review is approved before it shows. |
+| Changing a review | The published review stays live until the change is approved. |
+| Admin layout | Three pages: Waiting, Published, Settings. Each list has Next, Previous and find by text. |
+| Who replies | The site admin, from the admin page. One reply per review. |
+| Setup | One-page developer guide plus one command, same as Listora. |
 
 ## 0.1.0: first release
 
 Work the cards in this order. Each is a GitHub issue under milestone `0.1.0` with its build list, UX bar, function bar and QA cases. Later cards assume earlier ones.
 
-1. **Lab: mount the components and walk them**. Proven by: G-1, G-2, G-3
-2. **Reviews component: every state, every width**. Proven by: G-4, M-1, M-2, M-3, P-1, P-2, P-3, P-4, P-5
-3. **Rating badge on lists**. Proven by: G-5
-4. **My reviews and erase**. Proven by: M-4, M-5, M-6
-5. **Admin queue walked in the real admin**. Proven by: A-1, A-2, A-3, A-4, A-5
-6. **Structured data on a real page**. Proven by: G-6
-7. **Guest participation**. Proven by: G-7, G-8, G-9, G-10, A-7
-8. **Star-only ratings**. Proven by: M-9
-9. **Owner reply**. Proven by: A-8
-10. **Guest email setting and privacy**. Proven by: G-11, A-9
-11. **Wording file**. Proven by: G-90
-12. **Owner docs and install steps**. Proven by: tests
-13. **Registry branding and release gate**. Proven by: the whole checklist
+| Step | Issue | Task |
+| --- | --- | --- |
+| 1 | #1 | Lab: mount the components and walk them |
+| 2 | #14 | Settings page with tick-boxes for content types |
+| 3 | #18 | Admin: Waiting, Published and Settings pages with paging and find |
+| 4 | #2 | Reviews component: every state, every width |
+| 5 | #15 | Review list: breakdown bars, 10 at a time, sort |
+| 6 | #3 | Rating badge on lists |
+| 7 | #4 | My reviews and erase |
+| 8 | #5 | Admin walked in the real admin |
+| 9 | #6 | Structured data on a real page |
+| 10 | #10 | Star-only ratings |
+| 11 | #17 | Changing a review keeps the old one live until approved |
+| 12 | #9 | Guest reviews |
+| 13 | #12 | Guest email setting and privacy |
+| 14 | #11 | Owner reply |
+| 15 | #16 | Email the site admin when reviews are waiting |
+| 16 | #13 | Wording file |
+| 17 | #7 | Setup guide and one command, owner docs |
+| 18 | #8 | Registry branding, full QA, release gate |
+
+One agent works this repo, in order: the steps build on each other. It works on a branch named `0.1.0`, opens a pull request into `main`, and stops there. It never merges, tags or publishes.
+
+Patterns already proven in Listora and to be copied, not reinvented: the hourly notice task (`notifyOwners` in `emdash-listora/src/plugin.ts`), guarded writes with `updateIf`, the compare-and-set rate limit, and the version token on every admin decision.
 
 0.1.0 is done when every card is closed with a verification comment, `docs/qa/QA_CHECKLIST.md` has an honest last-walk line, and the gate in `CONTRIBUTING.md` passes. The owner publishes.
 
@@ -37,7 +57,6 @@ Work the cards in this order. Each is a GitHub issue under milestone `0.1.0` wit
 
 Agreed as worth doing, not now. Do not start these during 0.1.0.
 
-- Email the site admin when something is waiting for approval, on sites that have mail set up
 - Helpful votes on reviews
 - Photo reviews
 - Review reminders

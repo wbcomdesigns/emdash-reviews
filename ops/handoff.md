@@ -64,3 +64,7 @@ Each card lists what to build, when it is UX ready, when it is function ready, a
 ## When you stop
 
 Rewrite "Where it stands" with the date and the truth: what works, what was verified and how, what was not verified. Update `docs/qa/QA_CHECKLIST.md`'s last-walk line the same way.
+
+## 2026-10-13: plan locked
+
+Scope and plan are locked. New tasks #14 to #18 came out of the owner review; `PLAN.md` has the full order. Work on a branch named `0.1.0`.
