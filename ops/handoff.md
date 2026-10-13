@@ -12,7 +12,7 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-#1, #2, #13, #14 and #18 are done on branch `0.1.0`. Visitor phrases live in `site-kit/lib/reviews-strings.ts`. Admin is three pages. Lab start uses `astro dev --background`. Still unbuilt: visitor reviews, stars only, public owner reply on the kit, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
+#1, #2, #13, #14 and #18 are done on branch `0.1.0`. Visitor phrases live in `site-kit/lib/reviews-strings.ts`. Admin is three pages. Lab start uses `astro dev --background`. Owner install was walked on emdash-local (second sandboxed plugin beside Listora): kit copy, Reviews on posts and pages, RatingBadge on cards and the featured home post, Settings, Waiting approve. Still unbuilt: visitor reviews, stars only, public owner reply on the kit, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
 
 ## Start with
 
