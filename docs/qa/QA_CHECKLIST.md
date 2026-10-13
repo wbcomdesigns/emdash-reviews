@@ -24,9 +24,13 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | G-1 | Open the demo page | Reviews section, summary line and form render |
 | G-2 | Request `write` and `mine` directly | 401 |
 | G-3 | Request `list` and `summary` | 200 with published reviews only |
-| G-4 | Submit the form signed out | Sign-in link. Nothing stored |
+| G-4 | Setting members: submit the form signed out | Sign-in link. Nothing stored |
 | G-5 | Open the post list | Rated posts show a badge, unrated show nothing |
 | G-6 | View source of a rated post | `aggregateRating` in the structured data. Absent on an unrated post |
+| G-7 | Setting anyone: submit a review signed out with a name | Thanks message. It waits for approval even if member moderation is off |
+| G-8 | Setting anyone: submit a second review on the same page from the same visitor | It replaces the first |
+| G-9 | Setting anyone: fill the hidden honeypot field | Rejected |
+| G-10 | Setting members: call `write_guest` directly | Refused |
 
 ## Member (subscriber role)
 
@@ -51,6 +55,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | A-4 | Load the page, member rewrites, click Approve | Refused: changed after this page loaded |
 | A-5 | Change the collections setting, then review a post in a removed collection | Refused |
 | A-6 | Turn moderation off, write as a member | Live at once |
+| A-7 | Open the queue with a guest review waiting | It is marked as from a guest. Approve and remove work the same |
 
 ## Presentation, every screen
 

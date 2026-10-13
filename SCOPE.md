@@ -25,7 +25,7 @@ This plugin must work for any site owner, not one niche. Judge every screen and 
 | Docs or SaaS | Users rate tutorials and integrations |
 | Portfolio or agency | Testimonials on project pages |
 
-**Member accounts:** Needs member sign-in today. A site with no member accounts cannot collect reviews until the open decision below is settled.
+**Member accounts:** Works with or without member accounts. The owner chooses who can take part.
 
 How it stays general:
 
@@ -33,7 +33,7 @@ How it stays general:
 - No assumption about what is being reviewed: the wording says "review", never "product" or "article"
 - Wording on the form and empty states can be changed through component props
 
-**Open decision for the owner: who can take part.** Most EmDash sites have no member sign-up. If this plugin only works for signed-in members, it does not work for those sites. The proposal is one setting, "Who can take part": signed-in members only, or anyone. "Anyone" means one entry per visitor (a salted hash of the IP, never the IP itself), an hourly limit per visitor, and for written content, always held for approval. Until the owner decides, build members-only exactly as written here, and keep the identity check in one place so the guest path can be added without touching the routes.
+**Decided by the owner on 2026-10-13: the site owner chooses who can take part.** One setting: signed-in members only, or anyone. For a guest: one entry per visitor, identified by a salted hash of the IP (never the IP itself, never a cookie the visitor can clear to vote again within the hour limit), an hourly limit per visitor, a honeypot field on every guest form, and written content always held for approval. Guests have no account, so they have no "My ..." list and cannot erase their entries themselves; the owner removes them in admin. If the host supplies no IP, every guest shares one bucket: refuse guest writes in that case and say why in the admin page. Member routes stay private routes using `routeCtx.user`. Guest routes are separate public routes: never merge the two paths.
 
 ## In scope for 0.1.0
 
@@ -46,12 +46,12 @@ How it stays general:
 - Drop-in `<MyReviews>` for an account page, with delete-my-reviews
 - Admin: waiting queue, published list with remove, settings
 - Rating added to the page's structured data automatically
+- Setting "Who can review": signed-in members only, or anyone. A guest gives a display name (no email). A guest review always waits for approval, even when moderation is off for members
 
 ## Out of scope
 
 Do not build these. If a card seems to need one, stop and ask the owner.
 
-- Guest reviews
 - Photo or video reviews
 - Multi-criteria ratings
 - Owner replies
@@ -82,7 +82,7 @@ Ask for nothing more without the owner's agreement: every capability is shown to
 
 ### `reviews`
 
-Row id: `<collection>:<entryId>:<memberId>`. Indexes: `status`, `entry`, `member_id`, `createdAt`.
+Row id: `<collection>:<entryId>:<memberId>`. A guest's row id is `<collection>:<entryId>:v-<visitorHash>`. Indexes: `status`, `entry`, `member_id`, `createdAt`.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -97,6 +97,8 @@ Row id: `<collection>:<entryId>:<memberId>`. Indexes: `status`, `entry`, `member
 | `status` | string | `pending`, `published` or `rejected` |
 | `rev` | string | Random token, new on every write. Moderation clicks must match it |
 | `createdAt` | string | ISO time |
+| `visitor` | string | Guests only: SHA-256 of the IP plus a per-site salt. Never the IP. Empty for members |
+| `guest` | boolean | True for a guest review. Shown as a marker in the admin table |
 
 ### `ratings`
 
@@ -116,6 +118,7 @@ Row id: `<collection>:<entryId>`. Indexes: `collection`.
 | `collections` | string | `posts` | Comma-separated collection slugs open for reviews |
 | `noun` | string | `review` | The word shown to visitors: review, testimonial, rating |
 | `require_moderation` | boolean | `true` | Approve reviews before they show |
+| `who` | string | `anyone` | `members` or `anyone` |
 
 ## Routes
 
@@ -128,6 +131,7 @@ Base: `/_emdash/api/plugins/reviews/<name>`.
 | `summary` | public | GET | `collection`, `ids` (comma list, 50 max) | `ratings` map of id to `{average, count}` |
 | `write` | member | POST | `collection`, `id`, `stars`, `title`, `body` | `status`: pending or published |
 | `mine` | member | GET, DELETE | - | GET: own reviews with page title and link. DELETE: erase all own reviews |
+| `write_guest` | public | POST | `collection`, `id`, `stars`, `title`, `body`, `name`, honeypot field | `status`: always pending. Refused when the setting is members |
 | `admin` | admin | POST | Block Kit | Queue, published list, settings |
 
 `member` means a private route with `permission: MEMBER`. `admin` means a private route with no permission set. A `public` route never receives a user.
@@ -173,3 +177,4 @@ A screen is done when every state listed here has been seen in a browser at 1440
 - `page:metadata` output has only been tested through the test host, not on a rendered page
 - `syncRating` reads up to 500 reviews per entry
 - The kit has not been walked in a browser yet
+- Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server

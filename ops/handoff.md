@@ -33,8 +33,9 @@ npm test
 4. My reviews and erase
 5. Admin queue walked in the real admin
 6. Structured data on a real page
-7. Owner docs and install steps
-8. Registry branding and release gate
+7. Guest participation
+8. Owner docs and install steps
+9. Registry branding and release gate
 
 Each card lists what to build, when it is UX ready, when it is function ready, and the QA cases that prove it. A card is done when all three hold and you have commented on it with what you verified and how. Take them in order: later cards assume earlier ones.
 
@@ -51,6 +52,7 @@ Each card lists what to build, when it is UX ready, when it is function ready, a
 - `page:metadata` output has only been tested through the test host, not on a rendered page
 - `syncRating` reads up to 500 reviews per entry
 - The kit has not been walked in a browser yet
+- Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server
 
 ## When you stop
 
