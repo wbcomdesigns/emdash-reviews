@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** not walked yet.
+**Last walk:** 2026-10-13, 0.1.0 card #1. Browser: G-1 on `/reviews-demo` as guest (1440 and 390, light and dark) and as subscriber (1440 and 390); admin empty queue at `/_emdash/admin/plugins/reviews/queue`. Route: G-2 and G-3 via `prove-lab.sh`. Not walked: G-4 onward, member write, admin decisions.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 

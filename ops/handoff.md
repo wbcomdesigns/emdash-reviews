@@ -12,11 +12,11 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-The member-only engine, the admin page and 13 tests exist on `main`, and the three kit components were walked once on the lab. None of the owner's 2026-10-13 decisions are built yet: visitor reviews, stars only, owner reply, the three admin pages, the dashboard card, the bar breakdown and paging, tick-box content types, the hourly email. The existing code keeps reviews member-only and puts settings under the queue: both change.
+#1 is done on branch `0.1.0`: the demo mounts the three kit components, `prove-lab.sh` checks `list`, `summary`, and guest refusal on `write`/`mine`, and those cases were walked. Lab start uses `astro dev --background` (Astro 7). None of the owner's 2026-10-13 decisions are built yet: visitor reviews, stars only, owner reply, the three admin pages, the dashboard card, the bar breakdown and paging, tick-box content types, the hourly email. The existing code keeps reviews member-only and puts settings under the queue: both change.
 
 ## Start with
 
-#1 (mount and walk what exists), then #14 (Settings page with tick-boxes) and #18 (three admin pages).
+#14 (Settings page with tick-boxes) then #18 (three admin pages).
 
 ## Prove before you build on it
 

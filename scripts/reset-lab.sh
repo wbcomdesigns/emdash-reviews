@@ -13,7 +13,7 @@ rm -f "$LAB_DB" "$LAB_DB-wal" "$LAB_DB-shm"
 
 cd "$LAB"
 npx astro dev stop >/dev/null 2>&1 || true
-npx astro dev start --host 127.0.0.1 --port "$PORT" >"/tmp/emdash-lab-$SLUG.log" 2>&1 &
+npx astro dev --background --host 127.0.0.1 --port "$PORT"
 for _ in $(seq 1 60); do
 	if curl -sf "$BASE/_emdash/api/plugins/$SLUG/health" >/dev/null; then
 		curl -sf "$BASE/_emdash/api/setup/dev-bypass?redirect=/" >/dev/null
@@ -23,5 +23,5 @@ for _ in $(seq 1 60); do
 	sleep 1
 done
 echo "Lab did not become healthy. Tail:" >&2
-tail -n 40 "/tmp/emdash-lab-$SLUG.log" >&2
+npx astro dev logs >&2 || true
 exit 1
