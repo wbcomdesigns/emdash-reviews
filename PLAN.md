@@ -70,3 +70,9 @@ See "Out of scope" in `SCOPE.md`. If a card seems to need one of those, stop and
 - Prove the kit on a preview deploy of one existing site, never on production first
 - Check the site's EmDash version, its content security policy, and its page cache against what the kit does
 - Findings from the first plugin are in `wbcomdesigns/emdash-listora` issue #23
+
+## Who uses this today (owner, 2026-10-13)
+
+Everyone installing an EmDash plugin today is a developer. So a step that needs a developer (copying the kit, a trusted install to get an in-text block) is acceptable now. The screens the site owner and visitors use after setup still have to be plain and complete: no internal ids, no half-built features. We keep polishing setup as EmDash grows.
+
+After step 9, do #19 (in-text Reviews block, prove first).
