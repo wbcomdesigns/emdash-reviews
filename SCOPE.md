@@ -221,3 +221,5 @@ A screen is done when every state listed here has been seen in a browser at 1440
 - A guest email is personal data. It must never leave through `list`, `summary` or page HTML: test for it explicitly
 - The built engine requires review text and has no reply, guest or email support yet. Cards add them
 - Messages that come back from a route (for example a refusal) reach the visitor too. Routes return a stable `code`; the kit maps codes to phrases from the wording file and never prints the route's own English message
+
+**Owner decision 2026-10-13:** the member account piece (My votes / My reviews) moves to 0.2.0. EmDash is not member-focused for now. Erase-by-person stays in 0.1.0 as an admin action.

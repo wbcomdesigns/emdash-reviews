@@ -76,3 +76,5 @@ See "Out of scope" in `SCOPE.md`. If a card seems to need one of those, stop and
 Everyone installing an EmDash plugin today is a developer. So a step that needs a developer (copying the kit, a trusted install to get an in-text block) is acceptable now. The screens the site owner and visitors use after setup still have to be plain and complete: no internal ids, no half-built features. We keep polishing setup as EmDash grows.
 
 After step 9, do #19 (in-text Reviews block, prove first).
+
+**Owner decision 2026-10-13:** the member account piece (My votes / My reviews) moves to 0.2.0. EmDash is not member-focused for now. Erase-by-person stays in 0.1.0 as an admin action.
