@@ -1,0 +1,67 @@
+---
+/**
+ * The signed-in member's own reviews, for an account page: <MyReviews />
+ * Guests see a sign-in link. Nothing member-specific is in the HTML, so the page can be cached.
+ */
+import "../styles/wbcom-base.css";
+import "../styles/reviews.css";
+---
+
+<section class="wb" data-wbr-mine aria-labelledby="wbr-mine-h">
+	<h2 id="wbr-mine-h">My reviews</h2>
+	<div data-wbr-mine-list><p class="wb-muted">Loading your reviews…</p></div>
+	<div data-wbr-mine-actions hidden>
+		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-erase>Delete all my reviews</button>
+	</div>
+	<p class="wb-status" data-wbr-mine-status role="status" hidden></p>
+</section>
+
+<script>
+	import { api, esc, notify, starText } from "../lib/wbcom-kit";
+
+	const STATUS: Record<string, string> = { pending: "Awaiting approval", published: "Published", rejected: "Not approved" };
+
+	document.querySelectorAll<HTMLElement>("[data-wbr-mine]").forEach(async (root) => {
+		const list = root.querySelector<HTMLElement>("[data-wbr-mine-list]")!;
+		const actions = root.querySelector<HTMLElement>("[data-wbr-mine-actions]")!;
+		const status = root.querySelector<HTMLElement>("[data-wbr-mine-status]")!;
+
+		const load = async () => {
+			const data = await api("reviews", "mine");
+			if (!data.ok) {
+				list.innerHTML = "";
+				notify(status, data, "");
+				return;
+			}
+			const items = (data.items ?? []) as Array<Record<string, unknown>>;
+			actions.hidden = items.length === 0;
+			list.innerHTML = items.length
+				? `<ul class="wb-list">${items
+						.map((item) => {
+							const name = esc(item.entry_title || "Page no longer available");
+							const title = item.entry_url ? `<a href="${esc(item.entry_url)}">${name}</a>` : name;
+							return `<li class="wb-item"><p><strong>${title}</strong> <span class="wb-muted">${esc(STATUS[String(item.status)] ?? item.status)}</span></p><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${Number(item.stars) || 0} out of 5</span> ${esc(item.body)}</p></li>`;
+						})
+						.join("")}</ul>`
+				: `<div class="wb-empty"><p><strong>You have not written a review yet.</strong></p><p class="wb-muted">Reviews you write show here with their status.</p></div>`;
+		};
+		await load();
+
+		// Two clicks instead of a browser confirm box.
+		const erase = root.querySelector<HTMLButtonElement>("[data-wbr-erase]")!;
+		erase.addEventListener("click", async () => {
+			if (erase.dataset.armed !== "1") {
+				erase.dataset.armed = "1";
+				erase.textContent = "Click again to delete them for good";
+				return;
+			}
+			erase.setAttribute("aria-busy", "true");
+			const result = await api("reviews", "mine", undefined, "DELETE");
+			erase.removeAttribute("aria-busy");
+			erase.dataset.armed = "";
+			erase.textContent = "Delete all my reviews";
+			notify(status, result, "Your reviews were deleted.");
+			await load();
+		});
+	});
+</script>

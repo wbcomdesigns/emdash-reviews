@@ -1,0 +1,138 @@
+---
+/**
+ * Reviews and the review form for one entry. Drop it into any page:
+ *   <Reviews collection="posts" id={post.data.id} />
+ * The markup is the same for every visitor, so the page stays safe to cache.
+ * Guests who try to submit get a sign-in link.
+ */
+import "../styles/wbcom-base.css";
+import "../styles/reviews.css";
+
+interface Props {
+	collection: string;
+	id: string;
+	heading?: string;
+}
+
+const { collection, id, heading = "Reviews" } = Astro.props;
+const uid = `wbr-${id}`;
+---
+
+<section class="wb" data-wbr data-collection={collection} data-id={id} aria-labelledby={`${uid}-h`}>
+	<div class="wb-summary">
+		<h2 id={`${uid}-h`}>{heading}</h2>
+		<p class="wb-muted" data-wbr-summary aria-live="polite">Loading reviews…</p>
+	</div>
+
+	<div data-wbr-list></div>
+
+	<form class="wb-form" data-wbr-form novalidate>
+		<h3>Write a review</h3>
+		<fieldset class="wb-field" style="border:0;margin:0;padding:0;">
+			<legend class="wb-label">Your rating</legend>
+			<div class="wbr-rate">
+				{
+					[5, 4, 3, 2, 1].map((n) => (
+						<>
+							<input type="radio" name="stars" id={`${uid}-s${n}`} value={n} checked={n === 5} />
+							<label for={`${uid}-s${n}`}>
+								<span aria-hidden="true">★</span>
+								<span class="wb-sr">{n === 1 ? "1 star" : `${n} stars`}</span>
+							</label>
+						</>
+					))
+				}
+			</div>
+		</fieldset>
+		<div class="wb-field">
+			<label class="wb-label" for={`${uid}-title`}>Headline <span class="wb-muted">(optional)</span></label>
+			<input class="wb-input" id={`${uid}-title`} name="title" maxlength="120" autocomplete="off" />
+		</div>
+		<div class="wb-field">
+			<label class="wb-label" for={`${uid}-body`}>Your review</label>
+			<textarea class="wb-input" id={`${uid}-body`} name="body" maxlength="1000" required aria-describedby={`${uid}-help`}></textarea>
+			<p class="wb-muted" id={`${uid}-help`}>Up to 1000 characters. You need to be signed in.</p>
+		</div>
+		<div>
+			<button class="wb-btn" type="submit">Submit review</button>
+		</div>
+		<p class="wb-status" data-wbr-status role="status" hidden></p>
+	</form>
+</section>
+
+<script>
+	import { api, esc, notify, starText } from "../lib/wbcom-kit";
+
+	type Review = { author?: string; stars?: number; title?: string; body?: string; createdAt?: string };
+
+	function render(root: HTMLElement, data: { items?: Review[]; average?: number; count?: number }) {
+		const summary = root.querySelector<HTMLElement>("[data-wbr-summary]");
+		const list = root.querySelector<HTMLElement>("[data-wbr-list]");
+		const items = data.items ?? [];
+		const count = Number(data.count) || 0;
+		if (summary) {
+			summary.innerHTML = count
+				? `<span class="wbr-stars" aria-hidden="true">${starText(data.average)}</span> ${esc(Number(data.average).toFixed(1))} out of 5 · ${count} ${count === 1 ? "review" : "reviews"}`
+				: "No reviews yet";
+		}
+		if (!list) return;
+		list.innerHTML = items.length
+			? `<ul class="wb-list">${items
+					.map(
+						(item) =>
+							`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${Number(item.stars) || 0} out of 5</span> <strong>${esc(item.author || "Member")}</strong> <span class="wb-muted">${esc(String(item.createdAt ?? "").slice(0, 10))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body)}</p></li>`,
+					)
+					.join("")}</ul>`
+			: `<div class="wb-empty"><p><strong>Be the first to review this.</strong></p><p class="wb-muted">Your review helps the next visitor decide.</p></div>`;
+	}
+
+	document.querySelectorAll<HTMLElement>("[data-wbr]").forEach(async (root) => {
+		const collection = root.dataset.collection ?? "";
+		const id = root.dataset.id ?? "";
+		const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}`;
+		const summary = root.querySelector<HTMLElement>("[data-wbr-summary]");
+
+		const load = async () => {
+			const data = await api("reviews", `list?${where}`);
+			if (data.ok) render(root, data);
+			else if (summary) summary.textContent = "Reviews could not be loaded. Refresh to try again.";
+		};
+		await load();
+
+		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
+		const status = root.querySelector<HTMLElement>("[data-wbr-status]");
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (!status) return;
+			const fields = new FormData(form);
+			const body = String(fields.get("body") ?? "").trim();
+			const area = form.querySelector<HTMLTextAreaElement>("textarea");
+			if (!body) {
+				area?.setAttribute("aria-invalid", "true");
+				area?.focus();
+				notify(status, { ok: false, error: { message: "Write a few words before you submit." } }, "");
+				return;
+			}
+			area?.removeAttribute("aria-invalid");
+			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+			button?.setAttribute("aria-busy", "true");
+			const result = await api("reviews", "write", {
+				collection,
+				id,
+				stars: Number(fields.get("stars")),
+				title: String(fields.get("title") ?? ""),
+				body,
+			});
+			button?.removeAttribute("aria-busy");
+			notify(
+				status,
+				result,
+				result.status === "published" ? "Thanks. Your review is live." : "Thanks. Your review will show once it is approved.",
+			);
+			if (result.ok) {
+				form.reset();
+				await load();
+			}
+		});
+	});
+</script>

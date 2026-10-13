@@ -1,0 +1,35 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "reviews",
+	"name": "Reviews and Ratings",
+	"keywords": ["reviews", "ratings", "stars", "feedback", "schema"],
+	"publisher": "did:plc:2o6axbe264shvyedyhycyhya",
+
+	"license": "MIT",
+	"repo": "https://github.com/wbcomdesigns/emdash-reviews",
+	"author": { "name": "Wbcom Designs", "url": "https://wbcomdesigns.com", "email": "security@wbcomdesigns.com" },
+	"security": { "email": "security@wbcomdesigns.com" },
+	"description": "Star ratings and moderated member reviews for any content: posts, pages, products or listings.",
+
+	"capabilities": ["content:read"],
+	"allowedHosts": [],
+	"storage": {
+		"reviews": {
+			"indexes": ["status", "entry", "member_id", "createdAt"]
+		},
+		"ratings": {
+			"indexes": ["collection"]
+		}
+	},
+	"admin": {
+		"pages": [
+			{
+				"path": "/queue",
+				"label": "Reviews",
+				"icon": "star",
+				"group": "Reviews"
+			}
+		]
+	}
+}

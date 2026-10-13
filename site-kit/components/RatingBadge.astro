@@ -1,0 +1,38 @@
+---
+/**
+ * A compact rating for cards and lists: <RatingBadge collection="posts" id={post.data.id} />
+ * Every badge on a page is filled by one request. Entries with no rating show nothing.
+ */
+import "../styles/wbcom-base.css";
+import "../styles/reviews.css";
+
+interface Props {
+	collection: string;
+	id: string;
+}
+
+const { collection, id } = Astro.props;
+---
+
+<span class="wb wbr-badge" data-wbr-badge data-collection={collection} data-id={id} hidden></span>
+
+<script>
+	import { api, esc, starText } from "../lib/wbcom-kit";
+
+	const groups = new Map<string, HTMLElement[]>();
+	document.querySelectorAll<HTMLElement>("[data-wbr-badge]").forEach((node) => {
+		const key = node.dataset.collection ?? "";
+		groups.set(key, [...(groups.get(key) ?? []), node]);
+	});
+	groups.forEach(async (nodes, collection) => {
+		const ids = [...new Set(nodes.map((node) => node.dataset.id ?? ""))].slice(0, 50);
+		const data = await api("reviews", `summary?collection=${encodeURIComponent(collection)}&ids=${encodeURIComponent(ids.join(","))}`);
+		const ratings = (data.ratings ?? {}) as Record<string, { average: number; count: number }>;
+		nodes.forEach((node) => {
+			const rating = ratings[node.dataset.id ?? ""];
+			if (!rating) return;
+			node.hidden = false;
+			node.innerHTML = `<span class="wbr-stars" aria-hidden="true">${starText(rating.average)}</span><span>${esc(rating.average.toFixed(1))}</span><span class="wb-muted">(${esc(rating.count)})</span><span class="wb-sr">rated ${esc(rating.average.toFixed(1))} out of 5 from ${esc(rating.count)} reviews</span>`;
+		});
+	});
+</script>

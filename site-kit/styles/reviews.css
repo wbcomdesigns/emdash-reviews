@@ -1,0 +1,56 @@
+/* Reviews and Ratings: the parts that are not in wbcom-base.css. */
+.wbr-stars {
+	color: var(--wb-star);
+	letter-spacing: 0.05em;
+}
+
+/* Five radios drawn as stars. Source order is 5 to 1 so the sibling selector can fill leftwards. */
+.wbr-rate {
+	display: inline-flex;
+	flex-direction: row-reverse;
+	justify-content: flex-end;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.wbr-rate input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.wbr-rate label {
+	display: inline-grid;
+	place-items: center;
+	min-width: var(--wb-tap);
+	min-height: var(--wb-tap);
+	color: var(--wb-border);
+	font-size: 1.75rem;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.wbr-rate input:checked ~ label {
+	color: var(--wb-star);
+}
+
+@media (hover: hover) {
+	.wbr-rate label:hover,
+	.wbr-rate label:hover ~ label {
+		color: var(--wb-star);
+	}
+}
+
+.wbr-badge {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.3rem;
+	white-space: nowrap;
+}
+
+
+.wbr-rate input:focus-visible + label {
+	outline: 2px solid var(--wb-brand);
+	outline-offset: 2px;
+}
