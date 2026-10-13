@@ -37,8 +37,9 @@ npm test
 8. Star-only ratings
 9. Owner reply
 10. Guest email setting and privacy
-11. Owner docs and install steps
-12. Registry branding and release gate
+11. Wording file
+12. Owner docs and install steps
+13. Registry branding and release gate
 
 Each card lists what to build, when it is UX ready, when it is function ready, and the QA cases that prove it. A card is done when all three hold and you have commented on it with what you verified and how. Take them in order: later cards assume earlier ones.
 
@@ -58,6 +59,7 @@ Each card lists what to build, when it is UX ready, when it is function ready, a
 - Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server
 - A guest email is personal data. It must never leave through `list`, `summary` or page HTML: test for it explicitly
 - The built engine requires review text and has no reply, guest or email support yet. Cards add them
+- Messages that come back from a route (for example a refusal) reach the visitor too. Routes return a stable `code`; the kit maps codes to phrases from the wording file and never prints the route's own English message
 
 ## When you stop
 

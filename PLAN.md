@@ -10,6 +10,8 @@ The plan for this plugin, kept in the repository so it travels with the code. `S
 | Owner reply | In 0.1.0. The owner can post one public reply under a review. |
 | Stars without text | Allowed. Text is optional. A star-only rating counts in the average and does not appear in the review list. |
 | What a guest gives | The owner chooses: name only (default), or name and email. An email is never shown publicly. |
+| Wording and language | One wording file per plugin kit. Every visitor-facing phrase lives there, so an owner can translate or reword the plugin by editing one file. |
+| How the owner learns something is waiting | A clear waiting count on the plugin's admin page in 0.1.0. Email alerts in 0.2.0. |
 
 ## 0.1.0: first release
 
@@ -25,8 +27,9 @@ Work the cards in this order. Each is a GitHub issue under milestone `0.1.0` wit
 8. **Star-only ratings**. Proven by: M-9
 9. **Owner reply**. Proven by: A-8
 10. **Guest email setting and privacy**. Proven by: G-11, A-9
-11. **Owner docs and install steps**. Proven by: tests
-12. **Registry branding and release gate**. Proven by: the whole checklist
+11. **Wording file**. Proven by: G-90
+12. **Owner docs and install steps**. Proven by: tests
+13. **Registry branding and release gate**. Proven by: the whole checklist
 
 0.1.0 is done when every card is closed with a verification comment, `docs/qa/QA_CHECKLIST.md` has an honest last-walk line, and the gate in `CONTRIBUTING.md` passes. The owner publishes.
 
@@ -34,6 +37,7 @@ Work the cards in this order. Each is a GitHub issue under milestone `0.1.0` wit
 
 Agreed as worth doing, not now. Do not start these during 0.1.0.
 
+- Email the site admin when something is waiting for approval, on sites that have mail set up
 - Helpful votes on reviews
 - Photo reviews
 - Review reminders

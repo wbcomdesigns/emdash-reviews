@@ -32,6 +32,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | G-9 | Setting anyone: fill the hidden honeypot field | Rejected |
 | G-10 | Setting members: call `write_guest` directly | Refused |
 | G-11 | Email setting on: submit as a guest | The form asks for an email. It is never in any public response or in the page |
+| G-90 | Change three phrases in the wording file (a button, an empty state, an error), rebuild | Each change shows everywhere that phrase is used. No English left on screen that is not in the file |
 
 ## Member (subscriber role)
 

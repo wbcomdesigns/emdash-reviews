@@ -31,7 +31,7 @@ How it stays general:
 
 - Works on any collection the owner names. Nothing is tied to posts
 - No assumption about what is being reviewed: the wording says "review", never "product" or "article"
-- Wording on the form and empty states can be changed through component props
+- Every visitor-facing word is in one wording file, so a non-English site or a site with its own vocabulary changes it in one place
 
 **Decided by the owner on 2026-10-13: the site owner chooses who can take part.** One setting: signed-in members only, or anyone. For a guest: one entry per visitor, identified by a salted hash of the IP (never the IP itself, never a cookie the visitor can clear to vote again within the hour limit), an hourly limit per visitor, a honeypot field on every guest form, and written content always held for approval. Guests have no account, so they have no "My ..." list and cannot erase their entries themselves; the owner removes them in admin. If the host supplies no IP, every guest shares one bucket: refuse guest writes in that case and say why in the admin page. Member routes stay private routes using `routeCtx.user`. Guest routes are separate public routes: never merge the two paths.
 
@@ -45,6 +45,8 @@ Settled. Do not reopen these in code review. Dated 2026-10-13 unless noted.
 | Owner reply | In 0.1.0. The owner can post one public reply under a review. |
 | Stars without text | Allowed. Text is optional. A star-only rating counts in the average and does not appear in the review list. |
 | What a guest gives | The owner chooses: name only (default), or name and email. An email is never shown publicly. |
+| Wording and language | One wording file per plugin kit. Every visitor-facing phrase lives there, so an owner can translate or reword the plugin by editing one file. |
+| How the owner learns something is waiting | A clear waiting count on the plugin's admin page in 0.1.0. Email alerts in 0.2.0. |
 
 ## In scope for 0.1.0
 
@@ -62,6 +64,7 @@ Settled. Do not reopen these in code review. Dated 2026-10-13 unless noted.
 - Owner reply: one public reply per review, written in admin, shown under the review. Editable and removable
 - Setting "Ask guests for an email": off by default. When on, the email is stored, never returned by a public route, and shown only in admin
 - Admin: find a guest's reviews by email and delete them, so the owner can answer a privacy request
+- One wording file, `site-kit/lib/reviews-strings.ts`: every phrase a visitor can see (buttons, labels, messages, empty states, errors shown to visitors). Components and pages take their text only from it
 
 ## Out of scope
 
@@ -78,6 +81,7 @@ Do not build these. If a card seems to need one, stop and ask the owner.
 - Injecting scripts, styles or HTML into pages from the plugin
 - Reply threads (one owner reply only)
 - Emailing the reviewer
+- Translating the admin screens, and switching language per visitor. The wording file holds one language
 
 ## Roles
 
@@ -135,7 +139,6 @@ Row id: `<collection>:<entryId>`. Indexes: `collection`.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `collections` | string | `posts` | Comma-separated collection slugs open for reviews |
-| `noun` | string | `review` | The word shown to visitors: review, testimonial, rating |
 | `require_moderation` | boolean | `true` | Approve reviews before they show |
 | `who` | string | `anyone` | `members` or `anyone` |
 | `ask_guest_email` | boolean | `false` | Ask a guest for an email as well as a name |
@@ -177,6 +180,7 @@ Base: `/_emdash/api/plugins/reviews/<name>`.
 | `site-kit/components/MyReviews.astro` | `<MyReviews />` |
 | `site-kit/styles/reviews.css` | Star input and badge. Everything else comes from the base stylesheet |
 | `site-kit/lab/reviews-demo.astro` | Lab page that mounts all three components |
+| `site-kit/lib/reviews-strings.ts` | The wording file. The only place visitor-facing text is written |
 
 Plus the two shared files every Wbcom plugin kit carries: `site-kit/lib/wbcom-kit.ts` and `site-kit/styles/wbcom-base.css`.
 
@@ -202,3 +206,4 @@ A screen is done when every state listed here has been seen in a browser at 1440
 - Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server
 - A guest email is personal data. It must never leave through `list`, `summary` or page HTML: test for it explicitly
 - The built engine requires review text and has no reply, guest or email support yet. Cards add them
+- Messages that come back from a route (for example a refusal) reach the visitor too. Routes return a stable `code`; the kit maps codes to phrases from the wording file and never prints the route's own English message
