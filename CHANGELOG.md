@@ -2,6 +2,14 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.1.1]
+
+- Fix: registry cover is 1200x400 (the listing slot is 3:1). The old 1200x305 lockup was cropped to "WBReview".
+- New: `images/banner-dark.png` for the listing dark theme. The registry still accepts one banner, so the light file is the published cover.
+- Fix: unselected stars use the muted token so empty glyphs stay above 3:1.
+- Fix: owner reply and the honeypot use logical CSS, so RTL does not flip them the wrong way.
+- Fix: Show more is a quiet button so it is not a second primary next to Submit.
+
 ## [0.1.0]
 
 - New: star ratings and moderated reviews on any content type the owner ticks.

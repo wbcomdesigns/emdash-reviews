@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-14, 0.1.0 ship walk on lab :4331 and emdash-local :4321 after the guest write / pending change / bars build. Browser as guest then subscriber then admin. Walked: G-1 empty and live, G-7 guest name submit (always pending), G-5 badges, live bars after approve, M-1 member write as subscriber, A-1/A-2 Waiting Decide then Approve, A-10 Settings, P-1 no sideways scroll at 1440, P-3 dark Submit 21:1 after the shared button token, P-4 taps 44px, T-8 hidden badges `display:none`. Route and tests: G-2/G-3/G-8/G-9/G-10/G-11, M-2 pending change keeps the live rating, M-6/M-7/M-8/M-9, A-4/A-8/A-9, list paging and bars, dashboard widget, jsonld. Not walked in a browser: G-90 wording rebuild, M-4/M-5 (0.2.0), A-8 reply form (Save reply covered by tests; public `owner_reply` key proven), A-11 60-row paging, hourly mail send (needs Resend on the site), 390 viewport this pass, keyboard-only P-5.
+**Last walk:** 2026-10-14, presentation bar after 0.1.0 publish. `/wp-card-qa` + `/ux-foundation` on lab :4331 and emdash-local :4321. Guest first. Viewports 1440, 1024, 768, 390. Light and dark via `color-scheme` and `data-theme`. Walked: P-1 no sideways scroll, P-3 Submit 5.57:1 light / 7.88:1 dark, body and empty text above 4.5:1 against a real page background, P-4 visible kit controls 44px, P-6 empty state, P-7 no raw ids, T-8 hidden badges `display:none` and 0x0, focus-visible 2px brand ring on button, input and sort. Fail: unselected star glyphs 1.32:1 (P-3 / WCAG 1.4.11), see GitHub. Not walked: P-5 full keyboard pass, RTL live, 11+ reviews so Show more is visible, theme matrix beyond this site.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -79,6 +79,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 ## Known gaps
 
-- Submit review button in dark mode: white on the site brand tint (`#4d9fff` on this site), measured 2.72:1. Light mode is 5.57:1. Listora already darkens the fill; the shared kit button does not.
-- `.wbr-badge { display: inline-flex }` overrides the `hidden` attribute, so unrated badges fail T-8 (`offsetParent` set). Boxes measure 0x0, so nothing paints. Still needs `[hidden] { display: none }`.
 - This plugin has no `OWNER_INVENTORY.md`, `CORE_PATHS.md`, `SURFACES.md`, or personas yet. Walks use this checklist. Work and QA findings go to GitHub issues, not Basecamp.
+
+Closed by 0.1.0: dark Submit contrast (now 7.88:1) and hidden badge `display:none`.
+Closed by 0.1.1: empty stars use `--wb-muted`, reply/honeypot use logical CSS, Show more is quiet, registry covers are 1200x400 light and dark.

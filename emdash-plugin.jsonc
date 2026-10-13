@@ -21,6 +21,7 @@
 		"artifacts": {
 			"icon": { "file": "./icon.png" },
 			"banner": { "file": "./images/banner.png" },
+			// Dark counterpart lives at ./images/banner-dark.png. The schema accepts one banner.
 			"screenshots": [
 				{ "file": "./images/screenshot-1-reviews.png" },
 				{ "file": "./images/screenshot-2-published.png" },

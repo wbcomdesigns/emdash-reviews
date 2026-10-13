@@ -1,4 +1,4 @@
-# Handoff: WB Reviews (2026-10-14, 0.1.0 published)
+# Handoff: WB Reviews (2026-10-14, 0.1.1 covers)
 
 You are the one agent for this repo. Read this, then work.
 
@@ -12,20 +12,18 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-**Live:** 0.1.0 tagged, published, GitHub release created. Registry listing check is in progress.
+**Live:** 0.1.0 is published. 0.1.1 rebuilds the registry covers and the three presentation fixes from the ship walk. Do not overwrite 0.1.0.
 
-- Tag `v0.1.0` on `58f9127`
-- Package: `@vapvarun.bsky.social/reviews@0.1.0`
-- Page after approval: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
-- Release: https://github.com/wbcomdesigns/emdash-reviews/releases/tag/v0.1.0
-
-A finding after publish gets a patch only if a site owner is exposed. Otherwise file it for the next milestone.
+- Package: `@vapvarun.bsky.social/reviews`
+- Page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
+- Covers: `images/banner.png` (light, 1200x400, declared) and `images/banner-dark.png` (dark). Sources in `~/Documents/brand logos/wb-reviews/social/src/emdash-banner{,-dark}.svg`.
+- The listing hero is `.banner-wrap { aspect-ratio: 3; } img { object-fit: cover }`. A 1200x305 edge-to-edge lockup crops to "WBReview".
 
 ## Next
 
+- Publish 0.1.1 (owner or this session if already authorised). Then `emdash-plugin update-package --yes` so the listing copy matches.
 - #4 My reviews (0.2.0)
-- #19 trusted in-text block (after the registry listing is public)
-- Watch `emdash-plugin info vapvarun.bsky.social reviews --version 0.1.0` until the public listing is up
+- #19 trusted in-text block
 
 ## How to work
 
