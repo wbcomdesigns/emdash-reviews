@@ -10,7 +10,7 @@ Let visitors read reviews and star ratings on any piece of content, let signed-i
 
 **WordPress source:** None. New for EmDash. The review, moderation and rating logic was proven in Listora 0.3.x.
 
-**Brand:** No product logo yet. Use the Wbcom Designs mark from `~/Documents/brand logos/Wbcom Designs Logo/` until one is drawn.
+**Brand:** No brand of its own yet. No mark has been drawn. Until the owner approves one, the registry icon is the Wbcom Designs mark from `~/Documents/brand logos/Wbcom Designs Logo/`. Do not invent a logo in this repo: new marks are added to the pipeline in `~/Documents/brand logos/_render-src/`.
 
 ## Fits every kind of site
 
