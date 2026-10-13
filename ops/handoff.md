@@ -1,4 +1,4 @@
-# Handoff: WB Reviews (2026-10-14, 0.1.1 covers)
+# Handoff: WB Reviews (2026-10-14, 0.1.1 published)
 
 You are the one agent for this repo. Read this, then work.
 
@@ -12,16 +12,19 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-**Live:** 0.1.0 is published. 0.1.1 rebuilds the registry covers and the three presentation fixes from the ship walk. Do not overwrite 0.1.0.
+**Live:** 0.1.1 tagged, published, GitHub release created. Listing check for 0.1.1 is in progress. Do not overwrite 0.1.0 or 0.1.1.
 
-- Package: `@vapvarun.bsky.social/reviews`
+- Tag `v0.1.1` on `cad6ab1` (merge of #27)
+- Package: `@vapvarun.bsky.social/reviews@0.1.1`
 - Page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
-- Covers: `images/banner.png` (light, 1200x400, declared) and `images/banner-dark.png` (dark). Sources in `~/Documents/brand logos/wb-reviews/social/src/emdash-banner{,-dark}.svg`.
-- The listing hero is `.banner-wrap { aspect-ratio: 3; } img { object-fit: cover }`. A 1200x305 edge-to-edge lockup crops to "WBReview".
+- Release: https://github.com/wbcomdesigns/emdash-reviews/releases/tag/v0.1.1
+- Covers: `images/banner.png` (light, 1200x400, declared) and `images/banner-dark.png`. The registry schema accepts one banner.
+
+Closed in 0.1.1: #22 #23 #24 #25 #26.
 
 ## Next
 
-- Publish 0.1.1 (owner or this session if already authorised). Then `emdash-plugin update-package --yes` so the listing copy matches.
+- Watch `emdash-plugin info vapvarun.bsky.social reviews --version 0.1.1` until the listing uses the new cover
 - #4 My reviews (0.2.0)
 - #19 trusted in-text block
 
@@ -29,4 +32,4 @@ You are the one agent for this repo. Read this, then work.
 
 - GitHub issues only. Never Basecamp for EmDash plugins.
 - No AI attribution in commits. No em-dashes.
-- Do not republish 0.1.0. Do not `--allow-overwrite`.
+- Do not republish 0.1.0 or 0.1.1. Do not `--allow-overwrite`.
