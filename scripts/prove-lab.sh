@@ -17,8 +17,10 @@ ok "health"
 [[ "$(status "$API/mine")" == "401" ]] || fail "guest refused on mine"
 ok "guests refused on write and mine"
 
-json "$API/list?collection=posts&id=missing" | grep -q '"ok":true' || fail "list"
+json "$API/list?collection=posts&id=missing" | grep -q '"bars"' || fail "list"
 ok "list"
+[[ "$(status -X POST -H 'Content-Type: application/json' -d '{"collection":"posts","id":"missing","stars":5,"name":"Sam"}' "$API/write_guest")" == "200" ]] || fail "write_guest answers guests"
+ok "write_guest answers guests"
 json "$API/summary?collection=posts&ids=a,b" | grep -q '"ratings"' || fail "summary"
 ok "summary"
 

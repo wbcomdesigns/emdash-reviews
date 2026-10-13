@@ -17,9 +17,15 @@ export const reviews = {
 	headline: "Headline",
 	optional: "(optional)",
 	body: "Your review",
-	bodyHelp: "Up to 1000 characters. You need to be signed in.",
+	bodyHelp: "Up to 1000 characters. Stars alone are enough.",
+	bodyHelpMembers: "Up to 1000 characters. You need to be signed in.",
+	name: "Your name",
+	email: "Your email",
+	emailHelp: "Used only if we need to reach you. Never shown on the site.",
 	submit: "Submit review",
 	needText: "Write a few words before you submit.",
+	needName: "Add your name.",
+	needEmail: "Add your email.",
 	thanksPending: "Thanks. Your review will show once it is approved.",
 	thanksLive: "Thanks. Your review is live.",
 	signIn: "Sign in to continue.",
@@ -28,6 +34,13 @@ export const reviews = {
 	rateLimited: "Too many requests. Try again in an hour.",
 	offline: "Could not reach the site. Check your connection.",
 	fallback: "Something went wrong. Try again.",
+	sort: "Sort reviews",
+	sortNewest: "Newest",
+	sortHighest: "Highest rating",
+	sortLowest: "Lowest rating",
+	showMore: "Show more",
+	ownerReply: "Owner reply",
+	bar: (n: number, count: number) => `${n} star${n === 1 ? "" : "s"}: ${count}`,
 };
 
 export const badge = {
@@ -50,11 +63,15 @@ export const mine = {
 
 const CODES: Record<string, string> = {
 	SIGN_IN_REQUIRED: reviews.signIn,
+	MEMBERS_ONLY: reviews.signIn,
 	VALIDATION_ERROR: reviews.needText,
+	NEED_NAME: reviews.needName,
+	NEED_EMAIL: reviews.needEmail,
 	NOT_FOUND: reviews.closed,
 	RATE_LIMITED: reviews.rateLimited,
 	OFFLINE: reviews.offline,
 	FAILED: reviews.fallback,
+	SPAM: reviews.fallback,
 };
 
 export function phrase(code?: string): string {

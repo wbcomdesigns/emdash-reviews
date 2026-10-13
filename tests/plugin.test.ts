@@ -129,11 +129,15 @@ describe("moderation and rating", () => {
 		await decide("approve", "ben");
 		expect(await rating()).toEqual([3.5, 2]);
 
-		// A rewrite goes back to pending and leaves the rating at once.
+		// A rewrite waits for approval. The live review and rating stay until then.
 		await write(ben, { stars: 1 });
-		expect(await rating()).toEqual([5, 1]);
+		expect(await rating()).toEqual([3.5, 2]);
+		await decide("approve", "ben");
+		expect(await rating()).toEqual([3, 2]);
 
 		await call("mine", {}, { method: "DELETE", user: ana });
+		expect(await rating()).toEqual([1, 1]);
+		await call("mine", {}, { method: "DELETE", user: ben });
 		expect(await rating()).toEqual([0, 0]);
 	});
 
@@ -178,7 +182,15 @@ describe("privacy", () => {
 		await write(ana);
 		await decide("approve", "ana");
 		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { items: Array<Record<string, unknown>> };
-		expect(Object.keys(got.items[0]).sort()).toEqual(["author", "body", "createdAt", "stars", "title"]);
+		expect(Object.keys(got.items[0]).sort()).toEqual([
+			"author",
+			"body",
+			"createdAt",
+			"owner_reply",
+			"owner_reply_at",
+			"stars",
+			"title",
+		]);
 	});
 });
 
@@ -362,5 +374,165 @@ describe("structured data", () => {
 			graph: { aggregateRating: { ratingValue: 4, reviewCount: 1 } },
 		});
 		expect(await rt.transport.invokeHook("page:metadata", page(draft))).toBeNull();
+	});
+});
+
+describe("star-only and the public list", () => {
+	it("counts a star-only rating and keeps it out of the list", async () => {
+		const { call, write, decide, live } = await open();
+		await write(ana, { stars: 5, title: "", body: "" });
+		await write(ben, { stars: 1, title: "Too salty", body: "I would not order it again." });
+		await decide("approve", "ana");
+		await decide("approve", "ben");
+		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as {
+			items: Array<Record<string, unknown>>;
+			average: number;
+			count: number;
+			total: number;
+			bars: Record<string, number>;
+		};
+		expect(got).toMatchObject({ average: 3, count: 2, total: 1, bars: { 1: 1, 2: 0, 3: 0, 4: 0, 5: 1 } });
+		expect(got.items).toHaveLength(1);
+		expect(got.items[0]).toMatchObject({ title: "Too salty" });
+	});
+
+	it("pages ten text reviews and sorts them", async () => {
+		const { write, decide, call, live } = await open();
+		for (let i = 0; i < 12; i += 1) {
+			const who = member(`p${i}`);
+			await write(who, { stars: (i % 5) + 1, body: `Text review ${i}` });
+			await decide("approve", who.id);
+		}
+		const first = (await call("list", { collection: "posts", id: live, page: 1, sort: "newest" }, { method: "GET" })) as {
+			items: Array<{ body?: string }>;
+			total: number;
+			pages: number;
+		};
+		expect(first.total).toBe(12);
+		expect(first.pages).toBe(2);
+		expect(first.items).toHaveLength(10);
+		const highest = (await call("list", { collection: "posts", id: live, sort: "highest" }, { method: "GET" })) as {
+			items: Array<{ stars?: number }>;
+		};
+		expect(highest.items[0].stars).toBe(5);
+	});
+});
+
+describe("guest write", () => {
+	it("holds a guest review even when member moderation is off", async () => {
+		const { call, live, rt } = await open();
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_moderation",
+			values: { require_moderation: false },
+			page: "/settings",
+		});
+		expect(
+			await call(
+				"write_guest",
+				{ collection: "posts", id: live, stars: 5, name: "Sam", body: "From a visitor." },
+				{ method: "POST" },
+			),
+		).toMatchObject({ ok: true, status: "pending" });
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 0 });
+		const all = await rt.inspect.storage.list("reviews");
+		expect(all[0].data).toMatchObject({ guest: true, author: "Sam", status: "pending" });
+		expect(JSON.stringify(all[0].data)).not.toContain("sam@");
+	});
+
+	it("replaces the same visitor, refuses members-only, and ignores a filled honeypot", async () => {
+		const { call, live, rt } = await open();
+		const guest = { method: "POST" as const };
+		await call("write_guest", { collection: "posts", id: live, stars: 4, name: "Sam", body: "First.", visitor: "same" }, guest);
+		await call("write_guest", { collection: "posts", id: live, stars: 2, name: "Sam", body: "Second.", visitor: "same" }, guest);
+		expect(await rt.inspect.storage.list("reviews")).toHaveLength(1);
+		expect((await rt.inspect.storage.list("reviews"))[0].data).toMatchObject({ body: "Second." });
+		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "members" }, page: "/settings" });
+		expect(
+			await call("write_guest", { collection: "posts", id: live, stars: 5, name: "Sam", visitor: "same" }, guest),
+		).toMatchObject({ ok: false, error: { code: "MEMBERS_ONLY" } });
+		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "anyone" }, page: "/settings" });
+		expect(
+			await call(
+				"write_guest",
+				{ collection: "posts", id: live, stars: 5, name: "Bot", website: "http://spam.test", visitor: "bot" },
+				guest,
+			),
+		).toMatchObject({ ok: false, error: { code: "SPAM" } });
+	});
+
+	it("stores a guest email only when asked, and never returns it on a public route", async () => {
+		const { call, live, rt } = await open();
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_guest_email",
+			values: { ask_guest_email: true },
+			page: "/settings",
+		});
+		await call(
+			"write_guest",
+			{ collection: "posts", id: live, stars: 5, name: "Sam", email: "sam@example.com", body: "Hi.", visitor: "mail" },
+			{ method: "POST" },
+		);
+		const stored = (await rt.inspect.storage.list("reviews"))[0].data as Record<string, unknown>;
+		expect(stored.email).toBe("sam@example.com");
+		const listed = await call("list", { collection: "posts", id: live }, { method: "GET" });
+		expect(JSON.stringify(listed)).not.toContain("sam@example.com");
+		const health = await call("health", {}, { method: "GET" });
+		expect(health).toMatchObject({ askEmail: true, who: "anyone" });
+		expect(JSON.stringify(health)).not.toContain("sam@example.com");
+	});
+});
+
+describe("pending change and owner reply", () => {
+	it("keeps the live review while a change waits, then applies it on approve", async () => {
+		const { call, write, decide, live, rt, reviewId } = await open();
+		await write(ana, { stars: 5, body: "Loved it." });
+		await decide("approve", "ana");
+		await write(ana, { stars: 2, body: "Changed my mind." });
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({
+			average: 5,
+			items: [{ body: "Loved it." }],
+		});
+		const waiting = await rt.admin.loadPage("/waiting");
+		expect(JSON.stringify(waiting.blocks)).toContain("Change waiting");
+		expect(JSON.stringify(waiting.blocks)).toContain("Changed my mind.");
+		await decide("approve", "ana");
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({
+			average: 2,
+			items: [{ body: "Changed my mind." }],
+		});
+		expect(await rt.inspect.storage.get("reviews", reviewId("ana"))).toMatchObject({ pending_change: false, stars: 2 });
+	});
+
+	it("returns the owner reply on the public list and never an email", async () => {
+		const { call, write, decide, live } = await open();
+		await write(ana, { body: "Loved it." });
+		await decide("approve", "ana");
+		expect(
+			await call("admin", {
+				type: "form_submit",
+				action_id: `save_reply|posts:${live}:ana`,
+				page: "/published",
+				values: { body: "Glad you liked it." },
+			}),
+		).toMatchObject({ toast: { type: "success" } });
+		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as {
+			items: Array<Record<string, unknown>>;
+		};
+		expect(got.items[0]).toMatchObject({ owner_reply: "Glad you liked it." });
+		expect(JSON.stringify(got)).not.toContain("@example.com");
+	});
+});
+
+describe("dashboard card", () => {
+	it("shows the waiting count and a link to the queue", async () => {
+		const { call, write } = await open();
+		await write(ana);
+		const card = await call("admin", { type: "page_load", widget: "waiting" });
+		const json = JSON.stringify(card);
+		expect(json).toContain("Waiting");
+		expect(json).toContain("/waiting");
+		expect(json).not.toContain("save_collections");
 	});
 });

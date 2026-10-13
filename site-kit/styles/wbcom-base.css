@@ -9,7 +9,8 @@
 	--wb-border: var(--color-border, light-dark(#e0e0e0, #333333));
 	--wb-surface: var(--color-surface, light-dark(#f7f7f7, #1c1c1c));
 	--wb-brand: var(--color-brand, light-dark(#0066cc, #4d9fff));
-	--wb-on-brand: var(--color-on-brand, #ffffff);
+	--wb-btn-bg: light-dark(var(--wb-brand), color-mix(in srgb, var(--wb-brand) 52%, #000000));
+	--wb-on-brand: #ffffff;
 	--wb-star: light-dark(#b45309, #f5a623);
 	--wb-ok-bg: light-dark(#ecfdf5, #052e16);
 	--wb-ok-fg: light-dark(#166534, #86efac);
@@ -112,7 +113,7 @@ textarea.wb-input {
 	padding: 0 1.1rem;
 	border: 1px solid transparent;
 	border-radius: 8px;
-	background: var(--wb-brand);
+	background: var(--wb-btn-bg);
 	color: var(--wb-on-brand);
 	font: inherit;
 	font-weight: 600;

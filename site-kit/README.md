@@ -24,7 +24,7 @@ emdash({
 })
 ```
 
-Confirm `content:read` and `schema:read` at install.
+Confirm `content:read`, `schema:read` and `email:send` at install.
 
 ## 2. Copy the kit
 
@@ -60,11 +60,11 @@ Use the collection's real slug and the entry id. Reword visitor text in `src/lib
 
 ## 4. Open it as an owner
 
-1. Admin → Reviews → Settings. Tick the content types by name. Save.
-2. Sign in as a member, write a review on a live page.
+1. Admin → Reviews → Settings. Tick the content types by name. Choose who can review. Save.
+2. Write a review on a live page. Guests give a name. Members can write when signed in.
 3. Admin → Waiting. Approve. The page and the badge update.
 
-Guests can read. Writing as a guest is not in this build yet. Until then a signed-out submit shows a sign-in link.
+A guest review always waits for approval. Stars alone are enough. Reword visitor text in `src/lib/reviews-strings.ts`.
 
 ## Lab
 

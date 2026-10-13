@@ -1,6 +1,6 @@
 import type { PluginContext } from "emdash/plugin";
 
-import { allowedCollections, entryRefs, siteCollections, syncRating } from "./core";
+import { allowedCollections, entryRefs, siteCollections, syncRating, waitingCount } from "./core";
 import { asBoolean, asNumber, asRecord, asString, asStringArray, rows } from "./util";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
@@ -85,17 +85,32 @@ function noteFor(row: Record<string, unknown>): string {
 }
 
 async function listed(ctx: PluginContext, view: View) {
-	const status = view.kind === "waiting" ? "pending" : "published";
-	const found = await ctx.storage.reviews.query({
-		where: { status },
-		orderBy: { createdAt: "desc" },
-		limit: SCAN,
-	});
+	const published = rows(
+		await ctx.storage.reviews.query({
+			where: { status: "published" },
+			orderBy: { createdAt: "desc" },
+			limit: SCAN,
+		}),
+	);
+	const pending = rows(
+		await ctx.storage.reviews.query({
+			where: { status: "pending" },
+			orderBy: { createdAt: "desc" },
+			limit: SCAN,
+		}),
+	);
+	let items =
+		view.kind === "waiting"
+			? [...pending, ...published.filter((row) => row.pending_change === true)].sort((a, b) =>
+					asString(b.createdAt).localeCompare(asString(a.createdAt)),
+				)
+			: published;
 	const needle = view.q.toLowerCase();
-	let items = rows(found);
 	if (needle) {
 		items = items.filter((row) =>
-			[row.title, row.body, row.author, row.owner_reply].some((value) => asString(value).toLowerCase().includes(needle)),
+			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.owner_reply].some((value) =>
+				asString(value).toLowerCase().includes(needle),
+			),
 		);
 	}
 	const total = items.length;
@@ -112,10 +127,14 @@ async function tableRows(
 	actions: Array<[string, string]>,
 ) {
 	const refs = await entryRefs(ctx, items);
-	return items.map((row) => ({
-		review: [asString(row.title), asString(row.body)].filter(Boolean).join(": ") || "Stars only",
+	return items.map((row) => {
+		const title = row.pending_change === true ? asString(row.pending_title) : asString(row.title);
+		const body = row.pending_change === true ? asString(row.pending_body) : asString(row.body);
+		const stars = row.pending_change === true ? (asNumber(row.pending_stars) ?? row.stars) : row.stars;
+		return {
+		review: [title, body].filter(Boolean).join(": ") || "Stars only",
 		on: refs.get(asString(row.entry))?.title ?? "Removed page",
-		stars: row.stars ? `${row.stars} of 5` : "-",
+		stars: stars ? `${stars} of 5` : "-",
 		author: asString(row.author),
 		note: noteFor(row) || "-",
 		action: {
@@ -124,7 +143,8 @@ async function tableRows(
 			label: "Decide",
 			items: actions.map(([label, action]) => ({ label, value: stamped(action, row, view) })),
 		},
-	}));
+	};
+	});
 }
 
 const COLUMNS = [
@@ -328,6 +348,13 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 				submit: { label: "Save guest email", action_id: "save_guest_email" },
 			},
 			{ type: "divider" },
+			{
+				type: "banner",
+				title: "Guest protection depends on hosting",
+				description:
+					"When the site has a trusted visitor address, each guest is identified by a salted hash. When it does not, a browser cookie is used and protection is weaker.",
+				variant: "default",
+			},
 			{ type: "header", text: "Email when reviews are waiting" },
 			...lines([
 				"At most one short notice an hour. It does not include review text or a link. Needs mail set up on the site.",
@@ -365,6 +392,9 @@ function show(ctx: PluginContext, page: string, view: View, toast?: Toast): Prom
 export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<BlockResponse> {
 	const raw = asRecord(input);
 	const type = asString(raw.type);
+	if (asString(raw.widget) === "waiting" && type !== "form_submit" && type !== "block_action") {
+		return renderDashboard(ctx);
+	}
 	const page = pageOf(raw);
 	const surface = kindOf(page);
 	const kind: Kind = surface === "settings" ? "waiting" : surface;
@@ -464,17 +494,66 @@ export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<B
 			await ctx.storage.reviews.put(id, { ...row, owner_reply: "", owner_reply_at: "", rev: crypto.randomUUID() });
 			return renderList(ctx, { ...stay, kind: "published" }, { message: "Reply removed.", type: "success" });
 		}
-		await ctx.storage.reviews.put(id, {
-			...row,
-			status: action === "approve" ? "published" : "rejected",
-			rev: crypto.randomUUID(),
-		});
+		if (row.pending_change === true && action === "approve") {
+			await ctx.storage.reviews.put(id, {
+				...row,
+				stars: asNumber(row.pending_stars) ?? row.stars,
+				title: asString(row.pending_title),
+				body: asString(row.pending_body),
+				has_text: row.pending_has_text === true,
+				pending_change: false,
+				pending_stars: null,
+				pending_title: "",
+				pending_body: "",
+				pending_has_text: false,
+				status: "published",
+				rev: crypto.randomUUID(),
+			});
+		} else if (row.pending_change === true && action === "reject") {
+			await ctx.storage.reviews.put(id, {
+				...row,
+				pending_change: false,
+				pending_stars: null,
+				pending_title: "",
+				pending_body: "",
+				pending_has_text: false,
+				status: "published",
+				rev: crypto.randomUUID(),
+			});
+		} else {
+			await ctx.storage.reviews.put(id, {
+				...row,
+				status: action === "approve" ? "published" : "rejected",
+				rev: crypto.randomUUID(),
+			});
+		}
 		await syncRating(ctx, asString(row.entry));
 		return renderList(ctx, stay, {
-			message: action === "approve" ? "Review published." : "Review taken off the site.",
+			message:
+				action === "approve"
+					? "Review published."
+					: row.pending_change === true
+						? "Change discarded. The live review stays."
+						: "Review taken off the site.",
 			type: "success",
 		});
 	}
 
 	return show(ctx, page, view);
+}
+
+export async function renderDashboard(ctx: PluginContext): Promise<BlockResponse> {
+	const waiting = await waitingCount(ctx);
+	return {
+		blocks: [
+			{ type: "header", text: "Reviews waiting" },
+			waiting
+				? { type: "stats", items: [{ label: "Waiting", value: String(waiting) }] }
+				: { type: "section", text: "Nothing is waiting." },
+			{
+				type: "actions",
+				elements: [{ type: "link", label: "Open Waiting", target: { kind: "plugin-page", path: "/waiting" } }],
+			},
+		],
+	};
 }

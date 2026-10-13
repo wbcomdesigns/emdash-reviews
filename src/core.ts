@@ -9,10 +9,20 @@ export const MEMBER = "content:read";
 export type Member = { id: string; name: string | null; role: number };
 
 export const SIGN_IN = { ok: false, error: { code: "SIGN_IN_REQUIRED", message: "Sign in to continue." } };
+export const MEMBERS_ONLY = { ok: false, error: { code: "MEMBERS_ONLY", message: "Sign in to continue." } };
 export const RATE_LIMITED = {
 	ok: false,
 	error: { code: "RATE_LIMITED", message: "Too many requests. Try again in an hour." },
 };
+
+const SCAN = 500;
+
+/** Pending reviews plus published reviews that have a change waiting. */
+export async function waitingCount(ctx: PluginContext): Promise<number> {
+	const pending = await ctx.storage.reviews.count({ status: "pending" });
+	const published = rows(await ctx.storage.reviews.query({ where: { status: "published" }, limit: SCAN }));
+	return pending + published.filter((row) => row.pending_change === true).length;
+}
 
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const RATE_MAX = 8;

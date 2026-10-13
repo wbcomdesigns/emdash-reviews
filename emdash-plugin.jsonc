@@ -10,9 +10,27 @@
 	"repo": "https://github.com/wbcomdesigns/emdash-reviews",
 	"author": { "name": "Wbcom Designs", "url": "https://wbcomdesigns.com", "email": "security@wbcomdesigns.com" },
 	"security": { "email": "security@wbcomdesigns.com" },
-	"description": "Star ratings and moderated member reviews for any content: posts, pages, products or listings.",
+	"description": "Star ratings and moderated reviews for any content: posts, pages, products or listings.",
+	"sections": {
+		"description": { "file": "./docs/registry/description.md" },
+		"installation": { "file": "./docs/registry/installation.md" },
+		"faq": { "file": "./docs/registry/faq.md" },
+		"changelog": { "file": "./docs/registry/changelog.md" }
+	},
+	"release": {
+		"artifacts": {
+			"icon": { "file": "./icon.png" },
+			"banner": { "file": "./images/banner.png" },
+			"screenshots": [
+				{ "file": "./images/screenshot-1-reviews.png" },
+				{ "file": "./images/screenshot-2-published.png" },
+				{ "file": "./images/screenshot-3-waiting.png" },
+				{ "file": "./images/screenshot-4-settings.png" }
+			]
+		}
+	},
 
-	"capabilities": ["content:read", "schema:read"],
+	"capabilities": ["content:read", "schema:read", "email:send"],
 	"allowedHosts": [],
 	"storage": {
 		"reviews": {
@@ -42,6 +60,7 @@
 				"icon": "settings",
 				"group": "Reviews"
 			}
-		]
+		],
+		"widgets": [{ "id": "waiting", "title": "Reviews waiting", "size": "half" }]
 	}
 }

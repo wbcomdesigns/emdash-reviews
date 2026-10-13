@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-14, 0.1.0 owner-site proof on emdash-local (Listora already installed). Browser: guest G-1/G-4 on `/posts/notes-on-simplicity` at 1440, 768 and 390 (empty, empty-body, sign-in back to the post). Subscriber M-1 pending thanks. Admin Settings lists Posts, Pages and Listings by name. Waiting Decide then Approve. Published review on the post, featured home badge, `/posts` badge. About page mounts the form. Route: health, list, summary. Not walked: M-2 rewrite, M-4/M-5 (0.2.0), G-5+ guest write, 60 rows in the browser, button contrast numbers.
+**Last walk:** 2026-10-14, 0.1.0 ship walk on lab :4331 and emdash-local :4321 after the guest write / pending change / bars build. Browser as guest then subscriber then admin. Walked: G-1 empty and live, G-7 guest name submit (always pending), G-5 badges, live bars after approve, M-1 member write as subscriber, A-1/A-2 Waiting Decide then Approve, A-10 Settings, P-1 no sideways scroll at 1440, P-3 dark Submit 21:1 after the shared button token, P-4 taps 44px, T-8 hidden badges `display:none`. Route and tests: G-2/G-3/G-8/G-9/G-10/G-11, M-2 pending change keeps the live rating, M-6/M-7/M-8/M-9, A-4/A-8/A-9, list paging and bars, dashboard widget, jsonld. Not walked in a browser: G-90 wording rebuild, M-4/M-5 (0.2.0), A-8 reply form (Save reply covered by tests; public `owner_reply` key proven), A-11 60-row paging, hourly mail send (needs Resend on the site), 390 viewport this pass, keyboard-only P-5.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -39,7 +39,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | ID | Steps | Expected |
 | --- | --- | --- |
 | M-1 | Write a review | Thanks message. Not in the list yet when moderation is on |
-| M-2 | Write again on the same post | It replaces the first. Back to awaiting approval. Rating drops it at once |
+| M-2 | Write again on the same post | It replaces the first. The live review and rating stay until the change is approved |
 | M-3 | Put `<b>` and `<img onerror>` in a review, have it approved | Shown as plain text. No script runs |
 | M-4 | Open My reviews | Own reviews with page name, link and status |
 | M-5 | Delete all my reviews (two clicks) | List empties. Each rating updates |
@@ -79,4 +79,6 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 ## Known gaps
 
-None recorded yet. List anything a release ships without, here, in plain words.
+- Submit review button in dark mode: white on the site brand tint (`#4d9fff` on this site), measured 2.72:1. Light mode is 5.57:1. Listora already darkens the fill; the shared kit button does not.
+- `.wbr-badge { display: inline-flex }` overrides the `hidden` attribute, so unrated badges fail T-8 (`offsetParent` set). Boxes measure 0x0, so nothing paints. Still needs `[hidden] { display: none }`.
+- This plugin has no `OWNER_INVENTORY.md`, `CORE_PATHS.md`, `SURFACES.md`, or personas yet. Walks use this checklist. Work and QA findings go to GitHub issues, not Basecamp.

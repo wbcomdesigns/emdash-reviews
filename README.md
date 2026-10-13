@@ -1,8 +1,8 @@
 # Reviews and Ratings for EmDash
 
-Star ratings and moderated member reviews for any content: posts, pages, products or listings.
+Star ratings and moderated reviews for any content: posts, pages, products or listings.
 
-Status: in development. Not published.
+Status: 0.1.0 ready for the owner to publish. Not live on the registry yet.
 
 - Scope and schema: [SCOPE.md](SCOPE.md)
 - Plan and decisions: [PLAN.md](PLAN.md)
