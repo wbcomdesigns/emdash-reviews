@@ -1,10 +1,17 @@
 import type { PluginContext } from "emdash/plugin";
 
 import { allowedCollections, entryRefs, siteCollections, syncRating } from "./core";
-import { asBoolean, asRecord, asString, asStringArray, rows } from "./util";
+import { asBoolean, asNumber, asRecord, asString, asStringArray, rows } from "./util";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
+type Kind = "waiting" | "published";
+type View = { kind: Kind; page: number; q: string; replyId?: string };
+
+const PAGE_SIZE = 25;
+// ponytail: find and paging scan this many rows per status. Raise or index a search field if a site passes it.
+const SCAN = 500;
+const REPLY_MAX = 1000;
 
 const lines = (items: string[]) => items.map((text) => ({ type: "context", text }));
 
@@ -13,17 +20,39 @@ const lines = (items: string[]) => items.map((text) => ({ type: "context", text 
 // ponytail: check-then-write is not atomic. A rewrite landing in the few milliseconds
 // between the check and the write would still be decided; needs compare-and-set in
 // plugin storage to close fully.
-function stamped(action: string, row: Record<string, unknown>): string {
-	return `${action}|${asString(row.rev)}|${asString(row.id)}`;
+function stamped(action: string, row: Record<string, unknown>, view: View): string {
+	return [action, asString(row.rev), asString(row.id), view.kind, String(view.page), encodeURIComponent(view.q)].join("|");
 }
 
-function parseStamped(value: unknown): { action: string; stamp: string; id: string } {
-	const [action = "", stamp = "", ...rest] = asString(value).split("|");
-	return { action, stamp, id: rest.join("|") };
+function parseStamped(value: unknown): { action: string; stamp: string; id: string; kind: Kind; page: number; q: string } {
+	const [action = "", stamp = "", id = "", kind = "waiting", page = "1", q = ""] = asString(value).split("|");
+	return {
+		action,
+		stamp,
+		id,
+		kind: kind === "published" ? "published" : "waiting",
+		page: Math.max(1, asNumber(page) ?? 1),
+		q: decodeURIComponent(q),
+	};
 }
 
 function pageOf(input: Record<string, unknown>): string {
 	return asString(input.page) || asString(input.widget);
+}
+
+function kindOf(page: string): Kind | "settings" {
+	if (page.includes("settings")) return "settings";
+	if (page.includes("published")) return "published";
+	return "waiting";
+}
+
+function viewFrom(input: Record<string, unknown>, fallback: Kind): View {
+	const values = asRecord(input.values);
+	const raw = asString(input.value);
+	const parsed = raw.includes("|") ? parseStamped(raw) : { page: asNumber(raw) ?? 1, q: "" };
+	const q = asString(values.q) || parsed.q || asString(input.q);
+	const page = asNumber(values.page) ?? parsed.page ?? asNumber(input.page_number) ?? 1;
+	return { kind: fallback, page: Math.max(1, page), q };
 }
 
 async function loadSettings(ctx: PluginContext) {
@@ -48,25 +77,52 @@ async function loadSettings(ctx: PluginContext) {
 	};
 }
 
-async function table(ctx: PluginContext, status: "pending" | "published", actions: Array<[string, string]>) {
+function noteFor(row: Record<string, unknown>): string {
+	const bits: string[] = [];
+	if (row.guest === true) bits.push("Guest");
+	if (row.pending_change === true) bits.push("Change waiting");
+	return bits.join(" · ");
+}
+
+async function listed(ctx: PluginContext, view: View) {
+	const status = view.kind === "waiting" ? "pending" : "published";
 	const found = await ctx.storage.reviews.query({
 		where: { status },
 		orderBy: { createdAt: "desc" },
-		limit: 50,
+		limit: SCAN,
 	});
-	const items = rows(found);
+	const needle = view.q.toLowerCase();
+	let items = rows(found);
+	if (needle) {
+		items = items.filter((row) =>
+			[row.title, row.body, row.author, row.owner_reply].some((value) => asString(value).toLowerCase().includes(needle)),
+		);
+	}
+	const total = items.length;
+	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
+	const page = Math.min(Math.max(view.page, 1), pages);
+	const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+	return { slice, total, page, pages, view: { ...view, page } };
+}
+
+async function tableRows(
+	ctx: PluginContext,
+	items: Array<Record<string, unknown>>,
+	view: View,
+	actions: Array<[string, string]>,
+) {
 	const refs = await entryRefs(ctx, items);
 	return items.map((row) => ({
-		// Shown in full: what the admin reads is exactly what is live or about to be.
-		review: [asString(row.title), asString(row.body)].filter(Boolean).join(": "),
+		review: [asString(row.title), asString(row.body)].filter(Boolean).join(": ") || "Stars only",
 		on: refs.get(asString(row.entry))?.title ?? "Removed page",
 		stars: row.stars ? `${row.stars} of 5` : "-",
 		author: asString(row.author),
+		note: noteFor(row) || "-",
 		action: {
 			type: "menu",
 			action_id: "decide",
 			label: "Decide",
-			items: actions.map(([label, action]) => ({ label, value: stamped(action, row) })),
+			items: actions.map(([label, action]) => ({ label, value: stamped(action, row, view) })),
 		},
 	}));
 }
@@ -76,47 +132,105 @@ const COLUMNS = [
 	{ key: "on", label: "Page" },
 	{ key: "stars", label: "Stars" },
 	{ key: "author", label: "Author" },
+	{ key: "note", label: "Note" },
 	{ key: "action", label: "Decision", format: "element" },
 ];
 
-export async function renderQueue(ctx: PluginContext, toast?: Toast): Promise<BlockResponse> {
-	const [pending, live, pendingCount, liveCount] = await Promise.all([
-		table(ctx, "pending", [
-			["Approve", "approve"],
-			["Reject", "reject"],
-		]),
-		table(ctx, "published", [["Remove from site", "reject"]]),
-		ctx.storage.reviews.count({ status: "pending" }),
-		ctx.storage.reviews.count({ status: "published" }),
-	]);
+function pager(view: View, page: number, pages: number, total: number) {
+	const q = encodeURIComponent(view.q);
+	const button = (label: string, next: number) => ({
+		type: "button",
+		label,
+		action_id: "page",
+		value: `${view.kind}|${next}|${q}`,
+	});
+	const elements = [
+		page > 1 ? button("Previous", page - 1) : null,
+		page < pages ? button("Next", page + 1) : null,
+	].filter(Boolean);
+	return [
+		{ type: "context", text: `${total} ${total === 1 ? "review" : "reviews"}. Page ${page} of ${pages}.` },
+		elements.length ? { type: "actions", elements } : null,
+	].filter(Boolean) as Array<Record<string, unknown>>;
+}
+
+export async function renderList(ctx: PluginContext, view: View, toast?: Toast): Promise<BlockResponse> {
+	const { slice, total, page, pages, view: current } = await listed(ctx, view);
+	const waiting = current.kind === "waiting";
+	const actions: Array<[string, string]> = waiting
+		? [
+				["Approve", "approve"],
+				["Reject", "reject"],
+			]
+		: [
+				["Reply", "reply"],
+				["Remove reply", "unreply"],
+				["Remove from site", "reject"],
+			];
+	const table = await tableRows(ctx, slice, current, actions);
+	const title = waiting ? "Waiting" : "Published";
+	const empty = waiting
+		? { title: "Nothing waiting", description: "New reviews land here first." }
+		: { title: "No published reviews yet", description: "Approved reviews show here so you can reply or remove one." };
+	const replyRow = current.replyId ? asRecord(await ctx.storage.reviews.get(current.replyId)) : {};
 	return {
 		blocks: [
-			{ type: "header", text: "Reviews" },
-			{ type: "section", text: "Approve reviews before they show. Ratings update as you decide." },
+			{ type: "header", text: title },
 			{
-				type: "actions",
-				elements: [{ type: "link", label: "Settings", target: { kind: "plugin-page", path: "/settings" } }],
+				type: "section",
+				text: waiting
+					? "Approve reviews before they show. Ratings update as you decide."
+					: "Reply in public or take a review off the site.",
 			},
 			{
-				type: "stats",
-				items: [
-					{ label: "Waiting", value: pendingCount },
-					{ label: "Published", value: liveCount },
-				],
-			},
-			{ type: "header", text: "Waiting for approval" },
-			pending.length
-				? { type: "table", page_action_id: "pending_page", columns: COLUMNS, rows: pending }
-				: { type: "empty", title: "Nothing waiting", description: "New reviews land here first." },
-			{ type: "header", text: "Published" },
-			live.length
-				? { type: "table", page_action_id: "live_page", columns: COLUMNS, rows: live }
-				: {
-						type: "empty",
-						title: "No published reviews yet",
-						description: "Approved reviews show here so you can remove one later.",
+				type: "form",
+				block_id: "find",
+				fields: [
+					{
+						type: "text_input",
+						action_id: "q",
+						label: "Find",
+						initial_value: current.q,
+						placeholder: "Word in the review or the name",
 					},
-		],
+				],
+				submit: { label: "Find", action_id: "find" },
+			},
+			!waiting
+				? {
+						type: "form",
+						block_id: "by_email",
+						fields: [
+							{
+								type: "text_input",
+								action_id: "email",
+								label: "Find a guest by email and delete their reviews",
+							},
+						],
+						submit: { label: "Delete those reviews", action_id: "delete_email" },
+					}
+				: null,
+			current.replyId
+				? {
+						type: "form",
+						block_id: "reply",
+						fields: [
+							{
+								type: "text_input",
+								action_id: "body",
+								label: `Reply to ${asString(replyRow.author) || "this review"}`,
+								multiline: true,
+								initial_value: asString(replyRow.owner_reply),
+							},
+						],
+						submit: { label: "Save reply", action_id: `save_reply|${current.replyId}` },
+					}
+				: null,
+			...pager(current, page, pages, total),
+			table.length
+				? { type: "table", page_action_id: `${current.kind}_page`, columns: COLUMNS, rows: table }
+				: { type: "empty", title: empty.title, description: current.q ? "No reviews match that search." : empty.description },
+		].filter(Boolean) as Array<Record<string, unknown>>,
 		toast,
 	};
 }
@@ -243,15 +357,61 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 	};
 }
 
+function show(ctx: PluginContext, page: string, view: View, toast?: Toast): Promise<BlockResponse> {
+	if (kindOf(page) === "settings") return renderSettings(ctx, toast);
+	return renderList(ctx, view, toast);
+}
+
 export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<BlockResponse> {
 	const raw = asRecord(input);
 	const type = asString(raw.type);
 	const page = pageOf(raw);
-	const show = (toast?: Toast) => (page.includes("settings") ? renderSettings(ctx, toast) : renderQueue(ctx, toast));
+	const surface = kindOf(page);
+	const kind: Kind = surface === "settings" ? "waiting" : surface;
+	const view = viewFrom(raw, kind);
 
 	if (type === "form_submit") {
 		const values = asRecord(raw.values);
 		const action = asString(raw.action_id);
+		if (action === "find") {
+			return renderList(ctx, { kind, page: 1, q: asString(values.q) });
+		}
+		if (action === "delete_email") {
+			const email = asString(values.email).toLowerCase();
+			if (!email) {
+				return renderList(ctx, { kind: "published", page: 1, q: view.q }, { message: "Enter an email.", type: "error" });
+			}
+			const found = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
+			if (!found.length) {
+				return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
+					message: "No reviews with that email.",
+					type: "info",
+				});
+			}
+			await Promise.all(found.map((row) => ctx.storage.reviews.delete(row.id)));
+			for (const entry of new Set(found.map((row) => asString(row.entry)))) await syncRating(ctx, entry);
+			return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
+				message: `Deleted ${found.length} ${found.length === 1 ? "review" : "reviews"}.`,
+				type: "success",
+			});
+		}
+		if (action.startsWith("save_reply|")) {
+			const id = action.slice("save_reply|".length);
+			const row = asRecord(await ctx.storage.reviews.get(id));
+			if (!row.entry) {
+				return renderList(ctx, { kind: "published", page: view.page, q: view.q }, {
+					message: "That review no longer exists.",
+					type: "error",
+				});
+			}
+			await ctx.storage.reviews.put(id, {
+				...row,
+				owner_reply: asString(values.body).slice(0, REPLY_MAX),
+				owner_reply_at: new Date().toISOString(),
+				rev: crypto.randomUUID(),
+			});
+			return renderList(ctx, { kind: "published", page: view.page, q: view.q }, { message: "Reply saved.", type: "success" });
+		}
 		if (action === "save_collections") {
 			const site = await siteCollections(ctx);
 			const known = new Set(site.map((item) => item.slug));
@@ -282,25 +442,39 @@ export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<B
 		}
 	}
 
+	if (type === "block_action" && asString(raw.action_id) === "page") {
+		const [nextKind, nextPage, nextQ] = asString(raw.value).split("|");
+		return renderList(ctx, {
+			kind: nextKind === "published" ? "published" : "waiting",
+			page: Math.max(1, asNumber(nextPage) ?? 1),
+			q: decodeURIComponent(nextQ || ""),
+		});
+	}
+
 	if (type === "block_action" && asString(raw.action_id) === "decide") {
-		const { action, stamp, id } = parseStamped(raw.value);
+		const { action, stamp, id, kind: fromStamp, page: keep, q } = parseStamped(raw.value);
+		const stay: View = { kind: fromStamp, page: keep, q };
+		if (action === "reply") return renderList(ctx, { ...stay, kind: "published", replyId: id });
 		const row = asRecord(await ctx.storage.reviews.get(id));
-		if (!row.entry) return renderQueue(ctx, { message: "That review no longer exists.", type: "error" });
+		if (!row.entry) return renderList(ctx, stay, { message: "That review no longer exists.", type: "error" });
 		if (asString(row.rev) !== stamp) {
-			return renderQueue(ctx, { message: "That review changed after this page loaded. Check it again.", type: "error" });
+			return renderList(ctx, stay, { message: "That review changed after this page loaded. Check it again.", type: "error" });
+		}
+		if (action === "unreply") {
+			await ctx.storage.reviews.put(id, { ...row, owner_reply: "", owner_reply_at: "", rev: crypto.randomUUID() });
+			return renderList(ctx, { ...stay, kind: "published" }, { message: "Reply removed.", type: "success" });
 		}
 		await ctx.storage.reviews.put(id, {
 			...row,
 			status: action === "approve" ? "published" : "rejected",
-			// A new token, so a second click from a stale tab is refused.
 			rev: crypto.randomUUID(),
 		});
 		await syncRating(ctx, asString(row.entry));
-		return renderQueue(ctx, {
+		return renderList(ctx, stay, {
 			message: action === "approve" ? "Review published." : "Review taken off the site.",
 			type: "success",
 		});
 	}
 
-	return show();
+	return show(ctx, page, view);
 }

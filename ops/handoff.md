@@ -12,11 +12,11 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-#1 and #14 are done on branch `0.1.0`. Settings is its own page: tick-boxes from `schema:read` (proven on the lab: Posts and Pages by name), plus approval, who, guest email and the hourly notice. The queue no longer holds settings. Lab start uses `astro dev --background` (Astro 7). Still unbuilt: visitor reviews, stars only, owner reply, Waiting/Published split with paging, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
+#1, #14 and #18 are done on branch `0.1.0`. Admin is three pages: Waiting, Published and Settings. Settings tick-boxes come from `schema:read` (proven on the lab). Lists have Find, 25 a page, Next/Previous, a guest note, reply and delete-by-email. Lab start uses `astro dev --background` (Astro 7). Still unbuilt: visitor reviews, stars only, public owner reply on the kit, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
 
 ## Start with
 
-#18 (Waiting, Published and Settings pages with paging and find).
+#2 (Reviews component: every state, every width).
 
 ## Prove before you build on it
 

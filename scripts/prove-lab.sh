@@ -30,8 +30,10 @@ ok "demo mounts Reviews, RatingBadge and MyReviews"
 
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
 curl -sf -c "$JAR" -o /dev/null "$BASE/_emdash/api/setup/dev-bypass?redirect=/"
-[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/queue"}' "$API/admin")" == "200" ]] || fail "admin page loads"
-ok "admin page loads"
+[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/waiting"}' "$API/admin")" == "200" ]] || fail "waiting page loads"
+ok "waiting page loads"
+[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/published"}' "$API/admin")" == "200" ]] || fail "published page loads"
+ok "published page loads"
 
 settings="$(json -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/settings"}' "$API/admin")"
 echo "$settings" | grep -q 'blocks' || fail "settings page loads"

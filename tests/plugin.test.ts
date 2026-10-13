@@ -152,10 +152,13 @@ describe("moderation and rating", () => {
 		await write(ana);
 		await write(ben);
 		await decide("approve", "ana");
-		const page = await rt.admin.loadPage("/queue");
-		expect(page.blocks.filter((block) => block.type === "table")).toHaveLength(2);
-		expect(JSON.stringify(page.blocks)).not.toContain("save_settings");
-		expect(JSON.stringify(page.blocks)).not.toContain("save_collections");
+		const waiting = await rt.admin.loadPage("/waiting");
+		const published = await rt.admin.loadPage("/published");
+		expect(waiting.blocks.filter((block) => block.type === "table")).toHaveLength(1);
+		expect(published.blocks.filter((block) => block.type === "table")).toHaveLength(1);
+		expect(JSON.stringify(waiting.blocks)).toContain("Waiting");
+		expect(JSON.stringify(published.blocks)).toContain("Published");
+		expect(JSON.stringify(waiting.blocks)).not.toContain("save_collections");
 	});
 });
 
@@ -277,6 +280,71 @@ describe("settings", () => {
 		expect(json).toContain("owner@example.com");
 		expect(json).toMatch(/"action_id":"ask_guest_email"[^}]*"initial_value":true/);
 		expect(json).toMatch(/"action_id":"notify"[^}]*"initial_value":false/);
+	});
+});
+
+describe("admin lists", () => {
+	it("pages 25 at a time, finds by text, and keeps the page after a decision", async () => {
+		const { write, decide, call } = await open();
+		for (let i = 0; i < 60; i += 1) {
+			await write(member(`u${i}`), { body: `Review number ${i} marker-${i}` });
+		}
+		const first = await call("admin", { type: "page_load", page: "/waiting" });
+		expect(JSON.stringify(first)).toContain("Page 1 of 3");
+		expect(JSON.stringify(first)).toContain("60 reviews");
+		const third = (await call("admin", { type: "block_action", action_id: "page", value: "waiting|3|" })) as {
+			blocks: Array<Record<string, unknown>>;
+		};
+		expect(JSON.stringify(third)).toContain("Page 3 of 3");
+		const found = (await call("admin", {
+			type: "form_submit",
+			action_id: "find",
+			page: "/waiting",
+			values: { q: "marker-41" },
+		})) as { blocks: Array<Record<string, unknown>> };
+		expect(JSON.stringify(found)).toContain("marker-41");
+		expect(JSON.stringify(found)).not.toContain("marker-40");
+		const after = await decide("approve", "u0");
+		expect(after).toMatchObject({ toast: { type: "success" } });
+	});
+
+	it("marks a guest and deletes by email", async () => {
+		const { rt, call, live } = await open();
+		await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-guest`, {
+			entry: `posts:${live}`,
+			collection: "posts",
+			entryId: live,
+			member_id: "v-guest",
+			author: "Sam",
+			stars: 5,
+			title: "",
+			body: "From a visitor.",
+			status: "pending",
+			rev: "g1",
+			createdAt: "2026-01-02T00:00:00.000Z",
+			guest: true,
+			email: "sam@example.com",
+		});
+		const waiting = await rt.admin.loadPage("/waiting");
+		expect(JSON.stringify(waiting.blocks)).toContain("Guest");
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|g1|posts:${live}:v-guest` });
+		expect(
+			await call("admin", {
+				type: "form_submit",
+				action_id: "delete_email",
+				page: "/published",
+				values: { email: "nobody@example.com" },
+			}),
+		).toMatchObject({ toast: { message: "No reviews with that email." } });
+		expect(
+			await call("admin", {
+				type: "form_submit",
+				action_id: "delete_email",
+				page: "/published",
+				values: { email: "sam@example.com" },
+			}),
+		).toMatchObject({ toast: { type: "success" } });
+		expect(await rt.inspect.storage.get("reviews", `posts:${live}:v-guest`)).toBeNull();
 	});
 });
 

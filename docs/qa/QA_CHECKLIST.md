@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-13, 0.1.0 cards #1 and #14. Browser: G-1 on `/reviews-demo` as guest and subscriber (1440 and 390, light and dark); Settings at `/_emdash/admin/plugins/reviews/settings` (tick-boxes named Posts and Pages, groups, 1440 and 390, light and dark, closed banner after an empty save); queue no longer has a typed list. Route: G-2, G-3, settings `schema:read` via `prove-lab.sh`. Not walked: G-4 onward, member write, admin Approve/Reject, 768.
+**Last walk:** 2026-10-13, 0.1.0 cards #1, #14 and #18. Browser: G-1 on `/reviews-demo` as guest and subscriber (1440 and 390, light and dark); Waiting, Published and Settings empty states at 1440 and 390 (Find, count, email-delete form, tick-boxes). Route: G-2, G-3, 60-row paging and find, guest email delete via tests and `prove-lab.sh`. Not walked: G-4 onward, member write, admin Approve/Reject in the browser, 768, 60 rows in the browser.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -52,7 +52,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 | ID | Steps | Expected |
 | --- | --- | --- |
-| A-1 | Open Reviews with rows waiting and published | Page loads. Both tables show full text |
+| A-1 | Open Waiting and Published with rows | Each page loads. Full text. Find, count, Next and Previous when there are enough rows |
 | A-2 | Approve a review | It shows on the page. Rating and count change |
 | A-3 | Remove a published review | It leaves the page. Rating changes |
 | A-4 | Load the page, member rewrites, click Approve | Refused: changed after this page loaded |
@@ -62,6 +62,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | A-8 | Reply to a published review, then edit and remove the reply | The reply shows under the review, labelled as the owner's. Edits and removal show at once |
 | A-9 | Find a guest's reviews by email and delete them | They are gone from the site and the ratings update. A wrong email finds nothing and says so |
 | A-10 | Open Settings. Tick-boxes show the site's content types by name. Tick a second type and save, then reload. Untick all and save | Names, not slugs. The second type stays ticked after reload. A banner says reviews are closed |
+| A-11 | Open Waiting with 60 rows. Go to page 3 and decide. Find a word in a review | Page 3 has the rest. Find shows only the match. The decision stays on that list |
 
 ## Presentation, every screen
 
