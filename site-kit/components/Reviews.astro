@@ -38,7 +38,7 @@ const uid = `wbr-${id}`;
 
 	<div data-wbr-list></div>
 	<div>
-		<button class="wb-btn" type="button" data-wbr-more hidden>{S.showMore}</button>
+		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-more hidden>{S.showMore}</button>
 	</div>
 
 	<form class="wb-form" data-wbr-form novalidate>
@@ -70,7 +70,7 @@ const uid = `wbr-${id}`;
 		</div>
 		<div class="wb-field" aria-hidden="true">
 			<label class="wb-sr" for={`${uid}-website`}>Website</label>
-			<input id={`${uid}-website`} name="website" tabindex="-1" autocomplete="off" />
+			<input class="wb-sr" id={`${uid}-website`} name="website" tabindex="-1" autocomplete="off" />
 		</div>
 		<div class="wb-field">
 			<label class="wb-label" for={`${uid}-title`}>{S.headline} <span class="wb-muted">{S.optional}</span></label>

@@ -67,7 +67,7 @@ A registry release cannot be changed or removed. Every check runs before `publis
 
    Walk `docs/qa/QA_CHECKLIST.md` in a browser as guest, member (subscriber) and admin, at 1440, 768 and 390, in light and dark. Update its "Last walk" line honestly: what was walked in the browser, what only at route level, what was not walked.
 4. Wait for the automatic security review of the last pushed commit and fix what it finds. Do not tag while a review is outstanding.
-5. Registry branding in the manifest: `name`, `description` (140 characters), up to 5 `keywords`, `sections` (2000 characters each), `release.artifacts` (icon 256x256, banner, up to 8 screenshots in `images/`). Screenshots come from a freshly reset lab with no test data.
+5. Registry branding in the manifest: `name`, `description` (140 characters), up to 5 `keywords`, `sections` (2000 characters each), `release.artifacts` (icon 256x256, banner 1200x400 / 3:1 so `object-fit:cover` does not crop the lockup, plus `images/banner-dark.png` for the listing dark theme, up to 8 screenshots in `images/`). Screenshots come from a freshly reset lab with no test data. The schema accepts one banner; declare the light file.
 6. The same version in `package.json`, `package-lock.json`, `CHANGELOG.md`, `docs/registry/changelog.md` and the git tag.
 7. `npm run bundle` stays under 256 KB, 128 KB per file, 20 files.
 

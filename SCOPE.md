@@ -24,7 +24,7 @@ Let visitors read reviews and star ratings on any piece of content, let signed-i
 
 **WordPress source:** None. New for EmDash. The review, moderation and rating logic was proven in Listora 0.3.x.
 
-**Brand:** WB Reviews. Colour: warm orange. The full logo set is in `~/Documents/brand logos/wb-reviews/` (built by the pipeline on 2026-10-13, mark awaiting the owner's final look). This repo carries `icon.png` and `images/banner.png` from it. Do not draw or edit a logo here.
+**Brand:** WB Reviews. Colour: warm orange. The full logo set is in `~/Documents/brand logos/wb-reviews/` (built by the pipeline on 2026-10-13, mark awaiting the owner's final look). This repo carries `icon.png`, `images/banner.png` (light, 1200x400) and `images/banner-dark.png` from it. The registry accepts one banner; light is declared. Do not draw or edit a logo here.
 
 ## Fits every kind of site
 

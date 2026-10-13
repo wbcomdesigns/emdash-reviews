@@ -2,7 +2,7 @@
 
 Star ratings and moderated reviews for any content: posts, pages, products or listings.
 
-Status: 0.1.0 published. The public registry page stays empty until the listing check passes: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
+Status: 0.1.1. Public listing: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
 
 - Scope and schema: [SCOPE.md](SCOPE.md)
 - Plan and decisions: [PLAN.md](PLAN.md)

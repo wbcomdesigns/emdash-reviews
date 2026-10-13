@@ -25,7 +25,7 @@
 	place-items: center;
 	min-width: var(--wb-tap);
 	min-height: var(--wb-tap);
-	color: var(--wb-border);
+	color: var(--wb-muted);
 	font-size: 1.75rem;
 	line-height: 1;
 	cursor: pointer;
@@ -95,15 +95,7 @@
 .wbr-reply {
 	margin: 0.75rem 0 0;
 	padding: 0.75rem 1rem;
-	border-left: 3px solid var(--wb-brand);
-}
-
-[data-wbr-form] [name="website"] {
-	position: absolute;
-	left: -9999px;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
+	border-inline-start: 3px solid var(--wb-brand);
 }
 
 

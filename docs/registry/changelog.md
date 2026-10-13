@@ -1,3 +1,9 @@
+## 0.1.1
+
+- Fix: registry cover is 1200x400 so the listing no longer crops the name.
+- New: a dark cover sits beside the light one. The registry publishes the light file.
+- Fix: empty stars, RTL reply/honeypot, and Show more as a quiet button.
+
 ## 0.1.0
 
 - New: star ratings and moderated reviews on any content type the owner ticks.
