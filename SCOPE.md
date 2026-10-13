@@ -4,6 +4,18 @@
 
 This file is the contract for the plugin. Code, tests, docs and cards all follow it. If something here is wrong, change it here first, in the same pull request as the code.
 
+## Corrections after reading EmDash's own guides (2026-10-13)
+
+**This section wins over any older line below that disagrees with it.**
+
+- **Not the same as core comments.** EmDash has comments built in. Reviews adds what comments do not have: a star rating, one entry per person per page, an average with a count, the bar breakdown, an owner reply, and rating data for search engines. Do not build threads, replies between visitors, or anything comments already do.
+- **Owner alert:** a card on the EmDash dashboard (`admin.widgets`) shows what is waiting and links to it. That is the alert on every site. The hourly email is an extra, sent only where the site has mail; the setup guide names the official Resend plugin.
+- **Visitors first:** a visitor is never locked out by hosting. Trusted visitor address where EmDash supplies it, browser cookie otherwise, written content always approved first.
+- **Member account list (`<My...>`):** not in 0.1.0. Moved to 0.2.0. The erase-by-person function stays, as an admin action.
+- **Block inside post text:** only with a trusted install. The registry install is the whole product without it.
+- **Admin pages:** Waiting, Published, Settings, plus the dashboard card. Content types are tick-boxes (`schema:read`).
+- **Site time zone and date format** come from EmDash's site settings. Dates on reviews use them.
+
 ## Purpose
 
 Let visitors read reviews and star ratings on any piece of content, let signed-in members write one, and let the owner approve them before they show. Search engines get the rating as structured data.
@@ -65,7 +77,6 @@ Settled. Do not reopen these in code review. Dated 2026-10-13 unless noted.
 - Owner chooses which collections can be reviewed (default: posts)
 - Drop-in `<Reviews>` component: summary, list, form
 - Drop-in `<RatingBadge>` for cards and lists, filled by one request per page
-- Drop-in `<MyReviews>` for an account page, with delete-my-reviews
 - Admin: waiting queue, published list with remove, settings
 - Rating added to the page's structured data automatically
 - Setting "Who can review": signed-in members only, or anyone. A guest gives a display name (no email). A guest review always waits for approval, even when moderation is off for members
@@ -191,7 +202,6 @@ Base: `/_emdash/api/plugins/reviews/<name>`.
 | --- | --- |
 | `site-kit/components/Reviews.astro` | `<Reviews collection id heading? />` |
 | `site-kit/components/RatingBadge.astro` | `<RatingBadge collection id />` |
-| `site-kit/components/MyReviews.astro` | `<MyReviews />` |
 | `site-kit/styles/reviews.css` | Star input and badge. Everything else comes from the base stylesheet |
 | `site-kit/lab/reviews-demo.astro` | Lab page that mounts all three components |
 | `site-kit/lib/reviews-strings.ts` | The wording file. The only place visitor-facing text is written |
@@ -206,7 +216,6 @@ A screen is done when every state listed here has been seen in a browser at 1440
 | --- | --- |
 | Reviews component | Loading line, empty state, list, form idle / busy / success / error, guest sign-in prompt, star input by mouse and keyboard |
 | Rating badge | Hidden when there is no rating. Stars plus number plus count when there is |
-| My reviews | Loading, empty, list with status wording, guest sign-in prompt, two-click delete |
 | Admin queue | Empty states for both tables, full review text visible, toast after each decision |
 | Owner reply on the site | Shown under its review, labelled as the owner's reply, visually set apart, with its date |
 | Star-only rating | The form submits with stars alone. Thanks message is the same. The summary updates after approval |
