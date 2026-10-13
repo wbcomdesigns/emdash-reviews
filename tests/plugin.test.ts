@@ -100,8 +100,9 @@ describe("writing a review", () => {
 		const { call, write, live } = await open();
 		await call("admin", {
 			type: "form_submit",
-			action_id: "save_settings",
-			values: { collections: "posts", require_moderation: false },
+			action_id: "save_moderation",
+			values: { require_moderation: false },
+			page: "/settings",
 		});
 		expect(await write(ana, { stars: 5 })).toMatchObject({ status: "published" });
 		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ average: 5, count: 1 });
@@ -153,6 +154,8 @@ describe("moderation and rating", () => {
 		await decide("approve", "ana");
 		const page = await rt.admin.loadPage("/queue");
 		expect(page.blocks.filter((block) => block.type === "table")).toHaveLength(2);
+		expect(JSON.stringify(page.blocks)).not.toContain("save_settings");
+		expect(JSON.stringify(page.blocks)).not.toContain("save_collections");
 	});
 });
 
@@ -173,6 +176,107 @@ describe("privacy", () => {
 		await decide("approve", "ana");
 		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { items: Array<Record<string, unknown>> };
 		expect(Object.keys(got.items[0]).sort()).toEqual(["author", "body", "createdAt", "stars", "title"]);
+	});
+});
+
+describe("settings", () => {
+	it("lists the site's content types by their normal names", async () => {
+		const { rt } = await open();
+		await rt.fixtures.collection({
+			slug: "pages",
+			label: "Pages",
+			labelSingular: "Page",
+			urlPattern: "/{slug}",
+			supports: ["drafts"],
+			fields: [{ slug: "title", label: "Title", type: "string", required: true }],
+		} as never);
+		const page = await rt.admin.loadPage("/settings");
+		const form = page.blocks.find((block) => block.type === "form" && (block as { block_id?: string }).block_id === "settings_collections") as {
+			fields?: Array<{ options?: Array<{ label: string; value: string }>; initial_value?: string[] }>;
+		};
+		const options = form?.fields?.[0]?.options ?? [];
+		expect(options.map((item) => item.label).sort()).toEqual(["Pages", "Posts"]);
+		expect(options.every((item) => item.label !== item.value || item.label === "Posts" || item.label === "Pages")).toBe(true);
+		expect(form?.fields?.[0]?.initial_value).toEqual(["posts"]);
+	});
+
+	it("opens a second type and refuses reviews on an unticked type", async () => {
+		const { rt, call, live } = await open();
+		await rt.fixtures.collection({
+			slug: "pages",
+			label: "Pages",
+			labelSingular: "Page",
+			urlPattern: "/{slug}",
+			supports: ["drafts"],
+			fields: [{ slug: "title", label: "Title", type: "string", required: true }],
+		} as never);
+		const page = await rt.fixtures.content("pages", { data: { title: "About" }, slug: "about", status: "published" } as never);
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_collections",
+			values: { collections: ["pages"] },
+			page: "/settings",
+		});
+		expect(await call("write", { collection: "posts", id: live, body: "x" }, { method: "POST", user: ana })).toMatchObject({
+			ok: false,
+			error: { code: "NOT_FOUND" },
+		});
+		expect(await call("write", { collection: "pages", id: page.id, body: "Nice." }, { method: "POST", user: ana })).toMatchObject({
+			ok: true,
+		});
+	});
+
+	it("says so when no type is ticked, and does not break on a removed type", async () => {
+		const { rt, call, live } = await open();
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_collections",
+			values: { collections: ["gone", "posts"] },
+			page: "/settings",
+		});
+		const kept = await rt.admin.loadPage("/settings");
+		expect(JSON.stringify(kept.blocks)).toContain("Posts");
+		expect(JSON.stringify(kept.blocks)).not.toContain("gone");
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_collections",
+			values: { collections: [] },
+			page: "/settings",
+		});
+		const empty = await rt.admin.loadPage("/settings");
+		expect(JSON.stringify(empty.blocks)).toContain("Reviews are closed");
+		expect(await call("write", { collection: "posts", id: live, body: "x" }, { method: "POST", user: ana })).toMatchObject({
+			ok: false,
+			error: { code: "NOT_FOUND" },
+		});
+	});
+
+	it("saves who, guest email and the notice, and they survive a reload", async () => {
+		const { call, rt } = await open();
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_who",
+			values: { who: "members" },
+			page: "/settings",
+		});
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_guest_email",
+			values: { ask_guest_email: true },
+			page: "/settings",
+		});
+		await call("admin", {
+			type: "form_submit",
+			action_id: "save_notify",
+			values: { notify: false, notify_to: "owner@example.com" },
+			page: "/settings",
+		});
+		const page = await rt.admin.loadPage("/settings");
+		const json = JSON.stringify(page.blocks);
+		expect(json).toContain('"initial_value":"members"');
+		expect(json).toContain("owner@example.com");
+		expect(json).toMatch(/"action_id":"ask_guest_email"[^}]*"initial_value":true/);
+		expect(json).toMatch(/"action_id":"notify"[^}]*"initial_value":false/);
 	});
 });
 

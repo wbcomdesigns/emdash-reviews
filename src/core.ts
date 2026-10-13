@@ -36,10 +36,24 @@ export function entryKey(collection: string, id: string): string {
 	return `${collection}:${id}`;
 }
 
-/** Collections the owner opened for reviews. Posts by default. */
+export type SiteCollection = { slug: string; label: string };
+
+/** Content types on the site, by their normal names. Hidden types stay out. */
+export async function siteCollections(ctx: PluginContext): Promise<SiteCollection[]> {
+	const found = (await ctx.schema?.listCollections()) ?? [];
+	return found
+		.filter((item) => !item.hidden)
+		.map((item) => ({
+			slug: item.slug,
+			label: item.label || item.labelSingular || item.slug,
+		}));
+}
+
+/** Collections the owner opened for reviews. Posts until they save. An empty save means none. */
 export async function allowedCollections(ctx: PluginContext): Promise<string[]> {
-	const saved = asStringArray(await ctx.settings.get<string>("collections"));
-	return saved.length ? saved : ["posts"];
+	const raw = await ctx.settings.get<string>("collections");
+	if (raw === undefined || raw === null) return ["posts"];
+	return asStringArray(raw);
 }
 
 export type EntryRef = { title: string; url: string; published: boolean };

@@ -12,7 +12,7 @@
 	"security": { "email": "security@wbcomdesigns.com" },
 	"description": "Star ratings and moderated member reviews for any content: posts, pages, products or listings.",
 
-	"capabilities": ["content:read"],
+	"capabilities": ["content:read", "schema:read"],
 	"allowedHosts": [],
 	"storage": {
 		"reviews": {
@@ -28,6 +28,12 @@
 				"path": "/queue",
 				"label": "Reviews",
 				"icon": "star",
+				"group": "Reviews"
+			},
+			{
+				"path": "/settings",
+				"label": "Settings",
+				"icon": "settings",
 				"group": "Reviews"
 			}
 		]

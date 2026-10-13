@@ -33,4 +33,9 @@ curl -sf -c "$JAR" -o /dev/null "$BASE/_emdash/api/setup/dev-bypass?redirect=/"
 [[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/queue"}' "$API/admin")" == "200" ]] || fail "admin page loads"
 ok "admin page loads"
 
+settings="$(json -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/settings"}' "$API/admin")"
+echo "$settings" | grep -q 'blocks' || fail "settings page loads"
+echo "$settings" | grep -q 'Posts' || fail "settings lists Posts by name"
+ok "settings page lists content types"
+
 echo "All checks passed for $SLUG"

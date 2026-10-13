@@ -12,11 +12,11 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-#1 is done on branch `0.1.0`: the demo mounts the three kit components, `prove-lab.sh` checks `list`, `summary`, and guest refusal on `write`/`mine`, and those cases were walked. Lab start uses `astro dev --background` (Astro 7). None of the owner's 2026-10-13 decisions are built yet: visitor reviews, stars only, owner reply, the three admin pages, the dashboard card, the bar breakdown and paging, tick-box content types, the hourly email. The existing code keeps reviews member-only and puts settings under the queue: both change.
+#1 and #14 are done on branch `0.1.0`. Settings is its own page: tick-boxes from `schema:read` (proven on the lab: Posts and Pages by name), plus approval, who, guest email and the hourly notice. The queue no longer holds settings. Lab start uses `astro dev --background` (Astro 7). Still unbuilt: visitor reviews, stars only, owner reply, Waiting/Published split with paging, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
 
 ## Start with
 
-#14 (Settings page with tick-boxes) then #18 (three admin pages).
+#18 (Waiting, Published and Settings pages with paging and find).
 
 ## Prove before you build on it
 
