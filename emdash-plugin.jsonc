@@ -2,7 +2,7 @@
 	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
 
 	"slug": "reviews",
-	"name": "Reviews and Ratings",
+	"name": "WB Reviews",
 	"keywords": ["reviews", "ratings", "stars", "feedback", "schema"],
 	"publisher": "did:plc:2o6axbe264shvyedyhycyhya",
 
