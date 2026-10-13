@@ -12,11 +12,11 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-#1, #14 and #18 are done on branch `0.1.0`. Admin is three pages: Waiting, Published and Settings. Settings tick-boxes come from `schema:read` (proven on the lab). Lists have Find, 25 a page, Next/Previous, a guest note, reply and delete-by-email. Lab start uses `astro dev --background` (Astro 7). Still unbuilt: visitor reviews, stars only, public owner reply on the kit, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
+#1, #2, #13, #14 and #18 are done on branch `0.1.0`. Visitor phrases live in `site-kit/lib/reviews-strings.ts`. Admin is three pages. Lab start uses `astro dev --background`. Still unbuilt: visitor reviews, stars only, public owner reply on the kit, the dashboard card, the bar breakdown, the hourly email task. Reviews stay member-only until #9.
 
 ## Start with
 
-#2 (Reviews component: every state, every width).
+#15 (Review list: breakdown bars, 10 at a time, sort).
 
 ## Prove before you build on it
 

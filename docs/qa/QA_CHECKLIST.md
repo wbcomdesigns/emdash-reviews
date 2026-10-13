@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-13, 0.1.0 cards #1, #14 and #18. Browser: G-1 on `/reviews-demo` as guest and subscriber (1440 and 390, light and dark); Waiting, Published and Settings empty states at 1440 and 390 (Find, count, email-delete form, tick-boxes). Route: G-2, G-3, 60-row paging and find, guest email delete via tests and `prove-lab.sh`. Not walked: G-4 onward, member write, admin Approve/Reject in the browser, 768, 60 rows in the browser.
+**Last walk:** 2026-10-14, 0.1.0 cards #1, #2, #13, #14, #18. Browser: G-1, G-4, M-1, M-3, G-90, P-1/P-2 on `/reviews-demo` at 1440, 768 and 390, light and dark. Guest empty body, sign-in link back to the page, subscriber pending thanks, approved markup escaped. Route: G-2, G-3, admin lists. Not walked: M-2 rewrite, M-4/M-5 (0.2.0), G-5+ guest write, 60 rows in the browser, button contrast numbers.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 

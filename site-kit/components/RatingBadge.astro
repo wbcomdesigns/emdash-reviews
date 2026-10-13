@@ -18,6 +18,7 @@ const { collection, id } = Astro.props;
 
 <script>
 	import { api, esc, starText } from "../lib/wbcom-kit";
+	import { badge } from "../lib/reviews-strings";
 
 	const groups = new Map<string, HTMLElement[]>();
 	document.querySelectorAll<HTMLElement>("[data-wbr-badge]").forEach((node) => {
@@ -32,7 +33,7 @@ const { collection, id } = Astro.props;
 			const rating = ratings[node.dataset.id ?? ""];
 			if (!rating) return;
 			node.hidden = false;
-			node.innerHTML = `<span class="wbr-stars" aria-hidden="true">${starText(rating.average)}</span><span>${esc(rating.average.toFixed(1))}</span><span class="wb-muted">(${esc(rating.count)})</span><span class="wb-sr">rated ${esc(rating.average.toFixed(1))} out of 5 from ${esc(rating.count)} reviews</span>`;
+			node.innerHTML = `<span class="wbr-stars" aria-hidden="true">${starText(rating.average)}</span><span>${esc(rating.average.toFixed(1))}</span><span class="wb-muted">(${esc(rating.count)})</span><span class="wb-sr">${esc(badge.sr(rating.average.toFixed(1), rating.count))}</span>`;
 		});
 	});
 </script>
