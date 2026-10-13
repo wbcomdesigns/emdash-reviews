@@ -31,6 +31,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | G-8 | Setting anyone: submit a second review on the same page from the same visitor | It replaces the first |
 | G-9 | Setting anyone: fill the hidden honeypot field | Rejected |
 | G-10 | Setting members: call `write_guest` directly | Refused |
+| G-11 | Email setting on: submit as a guest | The form asks for an email. It is never in any public response or in the page |
 
 ## Member (subscriber role)
 
@@ -44,6 +45,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | M-6 | Send another member's id in a request | Ignored |
 | M-7 | Review a draft, a missing entry, a closed collection | Refused: reviews are not open for that page |
 | M-8 | Nine writes inside an hour | The ninth is refused |
+| M-9 | Submit stars with no text | Accepted. After approval the average and count change and the list does not gain an empty entry |
 
 ## Admin
 
@@ -56,6 +58,8 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | A-5 | Change the collections setting, then review a post in a removed collection | Refused |
 | A-6 | Turn moderation off, write as a member | Live at once |
 | A-7 | Open the queue with a guest review waiting | It is marked as from a guest. Approve and remove work the same |
+| A-8 | Reply to a published review, then edit and remove the reply | The reply shows under the review, labelled as the owner's. Edits and removal show at once |
+| A-9 | Find a guest's reviews by email and delete them | They are gone from the site and the ratings update. A wrong email finds nothing and says so |
 
 ## Presentation, every screen
 

@@ -1,10 +1,10 @@
 # Handoff: Reviews and Ratings
 
-Read this first. Then `SCOPE.md`, `AGENTS.md`, `CONTRIBUTING.md` and `docs/qa/QA_CHECKLIST.md`.
+Read this first. Then `SCOPE.md`, `PLAN.md`, `AGENTS.md`, `CONTRIBUTING.md` and `docs/qa/QA_CHECKLIST.md`.
 
 ## Where it stands (2026-10-13)
 
-Engine, admin and 13 tests are written and passing. The three components and the stylesheets are written but have never been rendered. No lab yet.
+Members-only engine, admin and 13 tests are written and passing, and the kit was walked once in a browser on the lab (submit, approve, list, badge, my reviews). Not built yet: guest reviews, star-only ratings, owner reply, the guest email setting.
 
 | Thing | Where |
 | --- | --- |
@@ -34,8 +34,11 @@ npm test
 5. Admin queue walked in the real admin
 6. Structured data on a real page
 7. Guest participation
-8. Owner docs and install steps
-9. Registry branding and release gate
+8. Star-only ratings
+9. Owner reply
+10. Guest email setting and privacy
+11. Owner docs and install steps
+12. Registry branding and release gate
 
 Each card lists what to build, when it is UX ready, when it is function ready, and the QA cases that prove it. A card is done when all three hold and you have commented on it with what you verified and how. Take them in order: later cards assume earlier ones.
 
@@ -53,6 +56,8 @@ Each card lists what to build, when it is UX ready, when it is function ready, a
 - `syncRating` reads up to 500 reviews per entry
 - The kit has not been walked in a browser yet
 - Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server
+- A guest email is personal data. It must never leave through `list`, `summary` or page HTML: test for it explicitly
+- The built engine requires review text and has no reply, guest or email support yet. Cards add them
 
 ## When you stop
 
