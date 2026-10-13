@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** not walked yet.
+**Last walk:** 2026-10-14, 0.1.0 ship walk on lab :4331 and emdash-local :4321 after the guest write / pending change / bars build. Browser as guest then subscriber then admin. Walked: G-1 empty and live, G-7 guest name submit (always pending), G-5 badges, live bars after approve, M-1 member write as subscriber, A-1/A-2 Waiting Decide then Approve, A-10 Settings, P-1 no sideways scroll at 1440, P-3 dark Submit 21:1 after the shared button token, P-4 taps 44px, T-8 hidden badges `display:none`. Route and tests: G-2/G-3/G-8/G-9/G-10/G-11, M-2 pending change keeps the live rating, M-6/M-7/M-8/M-9, A-4/A-8/A-9, list paging and bars, dashboard widget, jsonld. Not walked in a browser: G-90 wording rebuild, M-4/M-5 (0.2.0), A-8 reply form (Save reply covered by tests; public `owner_reply` key proven), A-11 60-row paging, hourly mail send (needs Resend on the site), 390 viewport this pass, keyboard-only P-5.
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -39,7 +39,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | ID | Steps | Expected |
 | --- | --- | --- |
 | M-1 | Write a review | Thanks message. Not in the list yet when moderation is on |
-| M-2 | Write again on the same post | It replaces the first. Back to awaiting approval. Rating drops it at once |
+| M-2 | Write again on the same post | It replaces the first. The live review and rating stay until the change is approved |
 | M-3 | Put `<b>` and `<img onerror>` in a review, have it approved | Shown as plain text. No script runs |
 | M-4 | Open My reviews | Own reviews with page name, link and status |
 | M-5 | Delete all my reviews (two clicks) | List empties. Each rating updates |
@@ -52,7 +52,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 | ID | Steps | Expected |
 | --- | --- | --- |
-| A-1 | Open Reviews with rows waiting and published | Page loads. Both tables show full text |
+| A-1 | Open Waiting and Published with rows | Each page loads. Full text. Find, count, Next and Previous when there are enough rows |
 | A-2 | Approve a review | It shows on the page. Rating and count change |
 | A-3 | Remove a published review | It leaves the page. Rating changes |
 | A-4 | Load the page, member rewrites, click Approve | Refused: changed after this page loaded |
@@ -61,6 +61,8 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | A-7 | Open the queue with a guest review waiting | It is marked as from a guest. Approve and remove work the same |
 | A-8 | Reply to a published review, then edit and remove the reply | The reply shows under the review, labelled as the owner's. Edits and removal show at once |
 | A-9 | Find a guest's reviews by email and delete them | They are gone from the site and the ratings update. A wrong email finds nothing and says so |
+| A-10 | Open Settings. Tick-boxes show the site's content types by name. Tick a second type and save, then reload. Untick all and save | Names, not slugs. The second type stays ticked after reload. A banner says reviews are closed |
+| A-11 | Open Waiting with 60 rows. Go to page 3 and decide. Find a word in a review | Page 3 has the rest. Find shows only the match. The decision stays on that list |
 
 ## Presentation, every screen
 
@@ -77,4 +79,6 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 ## Known gaps
 
-None recorded yet. List anything a release ships without, here, in plain words.
+- Submit review button in dark mode: white on the site brand tint (`#4d9fff` on this site), measured 2.72:1. Light mode is 5.57:1. Listora already darkens the fill; the shared kit button does not.
+- `.wbr-badge { display: inline-flex }` overrides the `hidden` attribute, so unrated badges fail T-8 (`offsetParent` set). Boxes measure 0x0, so nothing paints. Still needs `[hidden] { display: none }`.
+- This plugin has no `OWNER_INVENTORY.md`, `CORE_PATHS.md`, `SURFACES.md`, or personas yet. Walks use this checklist. Work and QA findings go to GitHub issues, not Basecamp.

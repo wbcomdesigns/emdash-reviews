@@ -3,10 +3,11 @@
  * Reviews and the review form for one entry. Drop it into any page:
  *   <Reviews collection="posts" id={post.data.id} />
  * The markup is the same for every visitor, so the page stays safe to cache.
- * Guests who try to submit get a sign-in link.
+ * Who can write is decided in the browser from the health route.
  */
 import "../styles/wbcom-base.css";
 import "../styles/reviews.css";
+import { reviews as S } from "../lib/reviews-strings";
 
 interface Props {
 	collection: string;
@@ -14,22 +15,36 @@ interface Props {
 	heading?: string;
 }
 
-const { collection, id, heading = "Reviews" } = Astro.props;
+const { collection, id, heading = S.heading } = Astro.props;
 const uid = `wbr-${id}`;
 ---
 
 <section class="wb" data-wbr data-collection={collection} data-id={id} aria-labelledby={`${uid}-h`}>
 	<div class="wb-summary">
 		<h2 id={`${uid}-h`}>{heading}</h2>
-		<p class="wb-muted" data-wbr-summary aria-live="polite">Loading reviews…</p>
+		<p class="wb-muted" data-wbr-summary aria-live="polite">{S.loading}</p>
+	</div>
+
+	<div class="wbr-bars" data-wbr-bars hidden></div>
+
+	<div class="wbr-toolbar">
+		<label class="wb-label" for={`${uid}-sort`}>{S.sort}</label>
+		<select class="wb-input" id={`${uid}-sort`} data-wbr-sort>
+			<option value="newest">{S.sortNewest}</option>
+			<option value="highest">{S.sortHighest}</option>
+			<option value="lowest">{S.sortLowest}</option>
+		</select>
 	</div>
 
 	<div data-wbr-list></div>
+	<div>
+		<button class="wb-btn" type="button" data-wbr-more hidden>{S.showMore}</button>
+	</div>
 
 	<form class="wb-form" data-wbr-form novalidate>
-		<h3>Write a review</h3>
+		<h3>{S.writeHeading}</h3>
 		<fieldset class="wb-field" style="border:0;margin:0;padding:0;">
-			<legend class="wb-label">Your rating</legend>
+			<legend class="wb-label">{S.rating}</legend>
 			<div class="wbr-rate">
 				{
 					[5, 4, 3, 2, 1].map((n) => (
@@ -37,67 +52,155 @@ const uid = `wbr-${id}`;
 							<input type="radio" name="stars" id={`${uid}-s${n}`} value={n} checked={n === 5} />
 							<label for={`${uid}-s${n}`}>
 								<span aria-hidden="true">★</span>
-								<span class="wb-sr">{n === 1 ? "1 star" : `${n} stars`}</span>
+								<span class="wb-sr">{S.star(n)}</span>
 							</label>
 						</>
 					))
 				}
 			</div>
 		</fieldset>
+		<div class="wb-field" data-wbr-guest hidden>
+			<label class="wb-label" for={`${uid}-name`}>{S.name}</label>
+			<input class="wb-input" id={`${uid}-name`} name="name" maxlength="80" autocomplete="name" />
+		</div>
+		<div class="wb-field" data-wbr-email hidden>
+			<label class="wb-label" for={`${uid}-email`}>{S.email}</label>
+			<input class="wb-input" id={`${uid}-email`} name="email" type="email" maxlength="200" autocomplete="email" />
+			<p class="wb-muted">{S.emailHelp}</p>
+		</div>
+		<div class="wb-field" aria-hidden="true">
+			<label class="wb-sr" for={`${uid}-website`}>Website</label>
+			<input id={`${uid}-website`} name="website" tabindex="-1" autocomplete="off" />
+		</div>
 		<div class="wb-field">
-			<label class="wb-label" for={`${uid}-title`}>Headline <span class="wb-muted">(optional)</span></label>
+			<label class="wb-label" for={`${uid}-title`}>{S.headline} <span class="wb-muted">{S.optional}</span></label>
 			<input class="wb-input" id={`${uid}-title`} name="title" maxlength="120" autocomplete="off" />
 		</div>
 		<div class="wb-field">
-			<label class="wb-label" for={`${uid}-body`}>Your review</label>
-			<textarea class="wb-input" id={`${uid}-body`} name="body" maxlength="1000" required aria-describedby={`${uid}-help`}></textarea>
-			<p class="wb-muted" id={`${uid}-help`}>Up to 1000 characters. You need to be signed in.</p>
+			<label class="wb-label" for={`${uid}-body`}>{S.body} <span class="wb-muted">{S.optional}</span></label>
+			<textarea class="wb-input" id={`${uid}-body`} name="body" maxlength="1000" aria-describedby={`${uid}-help`}></textarea>
+			<p class="wb-muted" id={`${uid}-help`} data-wbr-help>{S.bodyHelp}</p>
 		</div>
 		<div>
-			<button class="wb-btn" type="submit">Submit review</button>
+			<button class="wb-btn" type="submit">{S.submit}</button>
 		</div>
 		<p class="wb-status" data-wbr-status role="status" hidden></p>
 	</form>
 </section>
 
 <script>
-	import { api, esc, notify, starText } from "../lib/wbcom-kit";
+	import { api, esc, signInUrl, starText } from "../lib/wbcom-kit";
+	import { phrase, reviews as S } from "../lib/reviews-strings";
 
-	type Review = { author?: string; stars?: number; title?: string; body?: string; createdAt?: string };
+	type Review = {
+		author?: string;
+		stars?: number;
+		title?: string;
+		body?: string;
+		createdAt?: string;
+		owner_reply?: string;
+		owner_reply_at?: string;
+	};
+	type Result = { ok: boolean; status?: string; error?: { code?: string } };
+	type Bars = Record<string, number>;
 
-	function render(root: HTMLElement, data: { items?: Review[]; average?: number; count?: number }) {
-		const summary = root.querySelector<HTMLElement>("[data-wbr-summary]");
-		const list = root.querySelector<HTMLElement>("[data-wbr-list]");
-		const items = data.items ?? [];
-		const count = Number(data.count) || 0;
-		if (summary) {
-			summary.innerHTML = count
-				? `<span class="wbr-stars" aria-hidden="true">${starText(data.average)}</span> ${esc(Number(data.average).toFixed(1))} out of 5 · ${count} ${count === 1 ? "review" : "reviews"}`
-				: "No reviews yet";
+	function visitorToken(): string {
+		const key = "wbr_vid";
+		const found = document.cookie.split("; ").find((part) => part.startsWith(`${key}=`));
+		if (found) return decodeURIComponent(found.slice(key.length + 1));
+		const token = crypto.randomUUID();
+		document.cookie = `${key}=${encodeURIComponent(token)}; path=/; max-age=31536000; samesite=lax`;
+		return token;
+	}
+
+	function tell(box: HTMLElement, result: Result, success: string) {
+		box.hidden = false;
+		box.dataset.tone = result.ok ? "success" : "error";
+		if (result.ok) box.textContent = success;
+		else if (result.error?.code === "SIGN_IN_REQUIRED" || result.error?.code === "MEMBERS_ONLY") {
+			box.innerHTML = `${esc(S.signIn)} <a href="${esc(signInUrl())}">${esc(S.signInLink)}</a>`;
+		} else box.textContent = phrase(result.error?.code);
+	}
+
+	function renderBars(node: HTMLElement, bars: Bars, count: number) {
+		if (!count) {
+			node.hidden = true;
+			node.innerHTML = "";
+			return;
 		}
+		node.hidden = false;
+		node.innerHTML = [5, 4, 3, 2, 1]
+			.map((n) => {
+				const hits = Number(bars[String(n)] || 0);
+				const width = count ? Math.round((hits / count) * 100) : 0;
+				return `<div class="wbr-bar-row"><span>${esc(String(n))}</span><span class="wbr-bar" aria-hidden="true"><span style="width:${width}%"></span></span><span class="wb-sr">${esc(S.bar(n, hits))}</span><span>${esc(String(hits))}</span></div>`;
+			})
+			.join("");
+	}
+
+	function renderList(root: HTMLElement, items: Review[], replace: boolean) {
+		const list = root.querySelector<HTMLElement>("[data-wbr-list]");
 		if (!list) return;
-		list.innerHTML = items.length
-			? `<ul class="wb-list">${items
-					.map(
-						(item) =>
-							`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${Number(item.stars) || 0} out of 5</span> <strong>${esc(item.author || "Member")}</strong> <span class="wb-muted">${esc(String(item.createdAt ?? "").slice(0, 10))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body)}</p></li>`,
-					)
-					.join("")}</ul>`
-			: `<div class="wb-empty"><p><strong>Be the first to review this.</strong></p><p class="wb-muted">Your review helps the next visitor decide.</p></div>`;
+		if (!items.length && replace) {
+			list.innerHTML = `<div class="wb-empty"><p><strong>${esc(S.emptyTitle)}</strong></p><p class="wb-muted">${esc(S.emptyHint)}</p></div>`;
+			return;
+		}
+		const html = items
+			.map(
+				(item) =>
+					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(String(item.createdAt ?? "").slice(0, 10))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body || "")}</p>${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(String(item.owner_reply_at).slice(0, 10))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
+			)
+			.join("");
+		if (replace) list.innerHTML = `<ul class="wb-list">${html}</ul>`;
+		else list.querySelector("ul")?.insertAdjacentHTML("beforeend", html);
 	}
 
 	document.querySelectorAll<HTMLElement>("[data-wbr]").forEach(async (root) => {
 		const collection = root.dataset.collection ?? "";
 		const id = root.dataset.id ?? "";
-		const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}`;
 		const summary = root.querySelector<HTMLElement>("[data-wbr-summary]");
+		const barsNode = root.querySelector<HTMLElement>("[data-wbr-bars]");
+		const more = root.querySelector<HTMLButtonElement>("[data-wbr-more]");
+		const sort = root.querySelector<HTMLSelectElement>("[data-wbr-sort]");
+		const guestBox = root.querySelector<HTMLElement>("[data-wbr-guest]");
+		const emailBox = root.querySelector<HTMLElement>("[data-wbr-email]");
+		const help = root.querySelector<HTMLElement>("[data-wbr-help]");
+		let page = 1;
+		let pages = 1;
 
-		const load = async () => {
+		const health = await api("reviews", "health");
+		const anyone = health.who !== "members";
+		if (guestBox) guestBox.hidden = !anyone;
+		if (emailBox) emailBox.hidden = !anyone || health.askEmail !== true;
+		if (help) help.textContent = anyone ? S.bodyHelp : S.bodyHelpMembers;
+
+		const load = async (nextPage = 1, append = false) => {
+			const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}&page=${nextPage}&sort=${encodeURIComponent(sort?.value || "newest")}`;
 			const data = await api("reviews", `list?${where}`);
-			if (data.ok) render(root, data);
-			else if (summary) summary.textContent = "Reviews could not be loaded. Refresh to try again.";
+			if (!data.ok) {
+				if (summary) summary.textContent = S.loadError;
+				return;
+			}
+			const count = Number(data.count) || 0;
+			if (summary) {
+				summary.innerHTML = count
+					? `<span class="wbr-stars" aria-hidden="true">${starText(data.average)}</span> ${esc(S.summary(Number(data.average).toFixed(1), count))}`
+					: S.none;
+			}
+			if (barsNode) renderBars(barsNode, (data.bars ?? {}) as Bars, count);
+			page = Number(data.page) || 1;
+			pages = Number(data.pages) || 1;
+			renderList(root, (data.items ?? []) as Review[], !append);
+			if (more) more.hidden = page >= pages;
 		};
-		await load();
+		await load(1, false);
+
+		sort?.addEventListener("change", () => {
+			void load(1, false);
+		});
+		more?.addEventListener("click", () => {
+			void load(page + 1, true);
+		});
 
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const status = root.querySelector<HTMLElement>("[data-wbr-status]");
@@ -105,33 +208,28 @@ const uid = `wbr-${id}`;
 			event.preventDefault();
 			if (!status) return;
 			const fields = new FormData(form);
-			const body = String(fields.get("body") ?? "").trim();
-			const area = form.querySelector<HTMLTextAreaElement>("textarea");
-			if (!body) {
-				area?.setAttribute("aria-invalid", "true");
-				area?.focus();
-				notify(status, { ok: false, error: { message: "Write a few words before you submit." } }, "");
-				return;
-			}
-			area?.removeAttribute("aria-invalid");
-			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
-			button?.setAttribute("aria-busy", "true");
-			const result = await api("reviews", "write", {
+			const payload = {
 				collection,
 				id,
 				stars: Number(fields.get("stars")),
 				title: String(fields.get("title") ?? ""),
-				body,
-			});
+				body: String(fields.get("body") ?? ""),
+				name: String(fields.get("name") ?? ""),
+				email: String(fields.get("email") ?? ""),
+				website: String(fields.get("website") ?? ""),
+				visitor: visitorToken(),
+			};
+			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+			button?.setAttribute("aria-busy", "true");
+			let result = (await api("reviews", "write", payload)) as Result;
+			if (!result.ok && result.error?.code === "SIGN_IN_REQUIRED") {
+				result = (await api("reviews", "write_guest", payload)) as Result;
+			}
 			button?.removeAttribute("aria-busy");
-			notify(
-				status,
-				result,
-				result.status === "published" ? "Thanks. Your review is live." : "Thanks. Your review will show once it is approved.",
-			);
+			tell(status, result, result.status === "published" ? S.thanksLive : S.thanksPending);
 			if (result.ok) {
 				form.reset();
-				await load();
+				await load(1, false);
 			}
 		});
 	});

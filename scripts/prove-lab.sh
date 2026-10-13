@@ -12,17 +12,34 @@ status() { curl -s -o /dev/null -w "%{http_code}" -H "X-EmDash-Request: 1" -H "O
 json "$API/health" | grep -q '"ok":true' || fail "health"
 ok "health"
 
-# Member and admin routes must refuse guests. List every such route here.
-for route in ${GUEST_REFUSED_ROUTES:-}; do
-	[[ "$(status "$API/$route")" == "401" ]] || fail "guest refused on $route"
-done
-ok "guests refused on member and admin routes"
+# Member routes must refuse guests. write is POST-only; mine answers GET.
+[[ "$(status -X POST -H 'Content-Type: application/json' -d '{"collection":"posts","id":"x","stars":5,"body":"x"}' "$API/write")" == "401" ]] || fail "guest refused on write"
+[[ "$(status "$API/mine")" == "401" ]] || fail "guest refused on mine"
+ok "guests refused on write and mine"
+
+json "$API/list?collection=posts&id=missing" | grep -q '"bars"' || fail "list"
+ok "list"
+[[ "$(status -X POST -H 'Content-Type: application/json' -d '{"collection":"posts","id":"missing","stars":5,"name":"Sam"}' "$API/write_guest")" == "200" ]] || fail "write_guest answers guests"
+ok "write_guest answers guests"
+json "$API/summary?collection=posts&ids=a,b" | grep -q '"ratings"' || fail "summary"
+ok "summary"
+
+demo="$(curl -sf "$BASE/reviews-demo")" || fail "reviews-demo page"
+echo "$demo" | grep -q 'data-wbr-form' || fail "demo mounts Reviews"
+echo "$demo" | grep -q 'data-wbr-badge' || fail "demo mounts RatingBadge"
+echo "$demo" | grep -q 'data-wbr-mine' || fail "demo mounts MyReviews"
+ok "demo mounts Reviews, RatingBadge and MyReviews"
 
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
 curl -sf -c "$JAR" -o /dev/null "$BASE/_emdash/api/setup/dev-bypass?redirect=/"
-[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/queue"}' "$API/admin")" == "200" ]] || fail "admin page loads"
-ok "admin page loads"
+[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/waiting"}' "$API/admin")" == "200" ]] || fail "waiting page loads"
+ok "waiting page loads"
+[[ "$(status -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/published"}' "$API/admin")" == "200" ]] || fail "published page loads"
+ok "published page loads"
 
-# plugin-specific checks go below this line
+settings="$(json -b "$JAR" -X POST -H 'Content-Type: application/json' -d '{"type":"page_load","page":"/settings"}' "$API/admin")"
+echo "$settings" | grep -q 'blocks' || fail "settings page loads"
+echo "$settings" | grep -q 'Posts' || fail "settings lists Posts by name"
+ok "settings page lists content types"
 
 echo "All checks passed for $SLUG"

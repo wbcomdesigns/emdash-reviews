@@ -9,10 +9,20 @@ export const MEMBER = "content:read";
 export type Member = { id: string; name: string | null; role: number };
 
 export const SIGN_IN = { ok: false, error: { code: "SIGN_IN_REQUIRED", message: "Sign in to continue." } };
+export const MEMBERS_ONLY = { ok: false, error: { code: "MEMBERS_ONLY", message: "Sign in to continue." } };
 export const RATE_LIMITED = {
 	ok: false,
 	error: { code: "RATE_LIMITED", message: "Too many requests. Try again in an hour." },
 };
+
+const SCAN = 500;
+
+/** Pending reviews plus published reviews that have a change waiting. */
+export async function waitingCount(ctx: PluginContext): Promise<number> {
+	const pending = await ctx.storage.reviews.count({ status: "pending" });
+	const published = rows(await ctx.storage.reviews.query({ where: { status: "published" }, limit: SCAN }));
+	return pending + published.filter((row) => row.pending_change === true).length;
+}
 
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const RATE_MAX = 8;
@@ -36,10 +46,24 @@ export function entryKey(collection: string, id: string): string {
 	return `${collection}:${id}`;
 }
 
-/** Collections the owner opened for reviews. Posts by default. */
+export type SiteCollection = { slug: string; label: string };
+
+/** Content types on the site, by their normal names. Hidden types stay out. */
+export async function siteCollections(ctx: PluginContext): Promise<SiteCollection[]> {
+	const found = (await ctx.schema?.listCollections()) ?? [];
+	return found
+		.filter((item) => !item.hidden)
+		.map((item) => ({
+			slug: item.slug,
+			label: item.label || item.labelSingular || item.slug,
+		}));
+}
+
+/** Collections the owner opened for reviews. Posts until they save. An empty save means none. */
 export async function allowedCollections(ctx: PluginContext): Promise<string[]> {
-	const saved = asStringArray(await ctx.settings.get<string>("collections"));
-	return saved.length ? saved : ["posts"];
+	const raw = await ctx.settings.get<string>("collections");
+	if (raw === undefined || raw === null) return ["posts"];
+	return asStringArray(raw);
 }
 
 export type EntryRef = { title: string; url: string; published: boolean };

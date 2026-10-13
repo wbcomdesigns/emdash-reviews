@@ -2,24 +2,38 @@
 /**
  * The signed-in member's own reviews, for an account page: <MyReviews />
  * Guests see a sign-in link. Nothing member-specific is in the HTML, so the page can be cached.
+ * Not a 0.1.0 product surface. Kept so the lab can walk what exists.
  */
 import "../styles/wbcom-base.css";
 import "../styles/reviews.css";
+import { mine as S } from "../lib/reviews-strings";
 ---
 
 <section class="wb" data-wbr-mine aria-labelledby="wbr-mine-h">
-	<h2 id="wbr-mine-h">My reviews</h2>
-	<div data-wbr-mine-list><p class="wb-muted">Loading your reviews…</p></div>
+	<h2 id="wbr-mine-h">{S.heading}</h2>
+	<div data-wbr-mine-list><p class="wb-muted">{S.loading}</p></div>
 	<div data-wbr-mine-actions hidden>
-		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-erase>Delete all my reviews</button>
+		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-erase>{S.erase}</button>
 	</div>
 	<p class="wb-status" data-wbr-mine-status role="status" hidden></p>
 </section>
 
 <script>
-	import { api, esc, notify, starText } from "../lib/wbcom-kit";
+	import { api, esc, signInUrl, starText } from "../lib/wbcom-kit";
+	import { mine as S, phrase, reviews } from "../lib/reviews-strings";
 
-	const STATUS: Record<string, string> = { pending: "Awaiting approval", published: "Published", rejected: "Not approved" };
+	type Result = { ok: boolean; error?: { code?: string } };
+
+	function tell(box: HTMLElement, result: Result, success: string) {
+		box.hidden = false;
+		box.dataset.tone = result.ok ? "success" : "error";
+		if (result.ok) box.textContent = success;
+		else if (result.error?.code === "SIGN_IN_REQUIRED") {
+			box.innerHTML = `${esc(reviews.signIn)} <a href="${esc(signInUrl())}">${esc(reviews.signInLink)}</a>`;
+		} else box.textContent = phrase(result.error?.code);
+	}
+
+	const STATUS: Record<string, string> = { pending: S.pending, published: S.published, rejected: S.rejected };
 
 	document.querySelectorAll<HTMLElement>("[data-wbr-mine]").forEach(async (root) => {
 		const list = root.querySelector<HTMLElement>("[data-wbr-mine-list]")!;
@@ -30,7 +44,7 @@ import "../styles/reviews.css";
 			const data = await api("reviews", "mine");
 			if (!data.ok) {
 				list.innerHTML = "";
-				notify(status, data, "");
+				tell(status, data, "");
 				return;
 			}
 			const items = (data.items ?? []) as Array<Record<string, unknown>>;
@@ -38,29 +52,28 @@ import "../styles/reviews.css";
 			list.innerHTML = items.length
 				? `<ul class="wb-list">${items
 						.map((item) => {
-							const name = esc(item.entry_title || "Page no longer available");
+							const name = esc(item.entry_title || S.gone);
 							const title = item.entry_url ? `<a href="${esc(item.entry_url)}">${name}</a>` : name;
-							return `<li class="wb-item"><p><strong>${title}</strong> <span class="wb-muted">${esc(STATUS[String(item.status)] ?? item.status)}</span></p><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${Number(item.stars) || 0} out of 5</span> ${esc(item.body)}</p></li>`;
+							return `<li class="wb-item"><p><strong>${title}</strong> <span class="wb-muted">${esc(STATUS[String(item.status)] ?? item.status)}</span></p><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(reviews.outOf5(Number(item.stars) || 0))}</span> ${esc(item.body)}</p></li>`;
 						})
 						.join("")}</ul>`
-				: `<div class="wb-empty"><p><strong>You have not written a review yet.</strong></p><p class="wb-muted">Reviews you write show here with their status.</p></div>`;
+				: `<div class="wb-empty"><p><strong>${esc(S.emptyTitle)}</strong></p><p class="wb-muted">${esc(S.emptyHint)}</p></div>`;
 		};
 		await load();
 
-		// Two clicks instead of a browser confirm box.
 		const erase = root.querySelector<HTMLButtonElement>("[data-wbr-erase]")!;
 		erase.addEventListener("click", async () => {
 			if (erase.dataset.armed !== "1") {
 				erase.dataset.armed = "1";
-				erase.textContent = "Click again to delete them for good";
+				erase.textContent = S.eraseAgain;
 				return;
 			}
 			erase.setAttribute("aria-busy", "true");
 			const result = await api("reviews", "mine", undefined, "DELETE");
 			erase.removeAttribute("aria-busy");
 			erase.dataset.armed = "";
-			erase.textContent = "Delete all my reviews";
-			notify(status, result, "Your reviews were deleted.");
+			erase.textContent = S.erase;
+			tell(status, result, S.erased);
 			await load();
 		});
 	});
