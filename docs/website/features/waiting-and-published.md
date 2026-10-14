@@ -48,7 +48,7 @@ Published lists the reviews visitors can see, newest first. In the **Decide** me
 
 - **Read:** opens the full review.
 - **Reply:** opens a box under the review. See below.
-- **Delete:** takes the review off the site and out of the average. You see "Review taken off the site."
+- **Delete:** opens the review, with a **Delete** button that asks "Delete this review?" first. Confirm and the review is removed for good and leaves the average. You see "Review deleted." This cannot be undone.
 
 ### Reply to a review
 

@@ -37,10 +37,10 @@ Under the options you read two notes: "Anyone is the default. A guest review alw
 
 | Setting | What it controls | Default |
 | --- | --- | --- |
-| Email me when reviews are waiting | Sends the hourly notice while reviews are waiting | On |
+| Email me when reviews are waiting | Sends the hourly notice while reviews are waiting | Off |
 | Send the notice to | The address that gets the notice | Empty |
 
-Save shows "Email notice saved." The notice goes out at most once an hour and has no review text and no link. The field says "Leave blank to use the site admin." In version 0.1.4 the notice is sent only when you type an address, so fill it in. See [Dashboard card and email](../features/dashboard-and-email.md).
+Switch the notice on and type the address in the same step, then **Save**. Save shows "Email notice saved." Switching it on without an address says "Add the email address the notice should go to." and saves nothing. A plugin cannot read the site admin's address, so there is no default. The notice goes out at most once an hour and has no review text and no link. See [Dashboard card and email](../features/dashboard-and-email.md).
 
 ## Fixed limits
 

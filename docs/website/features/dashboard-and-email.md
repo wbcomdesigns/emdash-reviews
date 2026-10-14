@@ -18,7 +18,7 @@ WB Reviews can send a short email when reviews are waiting.
 - It says reviews are waiting on your site (with the site name) and tells you to sign in and open Reviews, then Waiting.
 - It has no review text and no link, so nothing private travels by email.
 - It goes to the address you type under **Send the notice to** on the **Email** tab of Settings.
-- Turn it off with **Email me when reviews are waiting**.
+- It starts off. Turn on **Email me when reviews are waiting** and type the address in the same step.
 
 ### What the email needs
 

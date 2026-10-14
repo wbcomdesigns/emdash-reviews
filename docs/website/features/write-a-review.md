@@ -8,7 +8,7 @@ This page describes what your visitors see and what they can and cannot do.
 
 | Field | Needed | Limit | Notes |
 | --- | --- | --- | --- |
-| Your rating | Yes | 1 to 5 stars | Chosen with the mouse or the keyboard. No star is chosen at the start |
+| Your rating | Yes | 1 to 5 stars | Chosen with the mouse or the keyboard. The stars are outlines until one is chosen, then fill up to it |
 | Your name | Yes | 80 characters | Shown with the review |
 | Your email | Only if you turned on **Ask guests for an email** | 200 characters | "Used only if we need to reach you. Never shown on the site." |
 | Headline | No | 120 characters | Shown above the text |
@@ -25,7 +25,8 @@ It depends on **Who can leave a review** in [Settings](../settings/settings-refe
 | Setting | What a visitor sees |
 | --- | --- |
 | Anyone (default) | The form, with a name field. No account is needed |
-| Signed-in members only | A line, "Sign in to write a review.", with a **Sign in** link instead of the form |
+| Anyone, for a signed-in member | The form without a name field. The review carries the member's account name |
+| Signed-in members only | Guests see "Only members can review this page." with a **Sign in** link that brings them back to the page. Signed-in members see the form without a name field |
 
 ## One review per person per page
 
