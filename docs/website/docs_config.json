@@ -1,0 +1,74 @@
+{
+  "product": "WB Reviews for EmDash",
+  "productType": "plugin",
+  "shortId": "wbrem",
+  "slug": "wb-reviews-emdash",
+  "tagline": "Add star ratings and moderated reviews to the articles and pages of your EmDash site.",
+  "note": "GitHub-only documentation. Metadata only. No publish or sync target.",
+  "images_dir": "images",
+  "version": "0.1.4",
+  "sections": [
+    {
+      "name": "Getting Started",
+      "folder": "getting-started",
+      "description": "What WB Reviews does, how to install it, and your first review from start to finish.",
+      "pages": [
+        { "slug": "introduction", "title": "Introduction" },
+        { "slug": "install", "title": "Install WB Reviews" },
+        { "slug": "first-review", "title": "Your first review" }
+      ]
+    },
+    {
+      "name": "Using Reviews",
+      "folder": "features",
+      "description": "Where reviews show, how visitors write one, and how you approve, answer and remove them.",
+      "pages": [
+        { "slug": "where-reviews-show", "title": "Where reviews show" },
+        { "slug": "write-a-review", "title": "Writing a review as a visitor" },
+        { "slug": "waiting-and-published", "title": "Waiting and Published" },
+        { "slug": "dashboard-and-email", "title": "Dashboard card and email" }
+      ]
+    },
+    {
+      "name": "Settings",
+      "folder": "settings",
+      "description": "Every setting tab, what it controls, and its default.",
+      "pages": [
+        { "slug": "settings-reference", "title": "Settings reference" }
+      ]
+    },
+    {
+      "name": "Customize",
+      "folder": "customize",
+      "description": "Change the words visitors see and match the reviews to your theme.",
+      "pages": [
+        { "slug": "wording-and-look", "title": "Wording and look" }
+      ]
+    },
+    {
+      "name": "FAQ",
+      "folder": "faq",
+      "description": "Short answers to the questions site owners ask most.",
+      "pages": [
+        { "slug": "faq", "title": "Frequently asked questions" }
+      ]
+    },
+    {
+      "name": "Troubleshooting",
+      "folder": "troubleshooting",
+      "description": "What to check when reviews do not show or a review does not arrive.",
+      "pages": [
+        { "slug": "troubleshooting", "title": "Troubleshooting" }
+      ]
+    },
+    {
+      "name": "What's New",
+      "folder": "whats-new",
+      "description": "What changed in each release, newest first.",
+      "pages": [
+        { "slug": "0-1-4", "title": "What's new in 0.1.4" },
+        { "slug": "0-1-3", "title": "What's new in 0.1.3" }
+      ]
+    }
+  ]
+}
