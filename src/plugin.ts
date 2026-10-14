@@ -15,7 +15,7 @@ import {
 	waitingCount,
 	type Member,
 } from "./core";
-import { asNumber, asRecord, asString, nowIso, rows } from "./util";
+import { asNumber, asRecord, asString, nowIso, plainText, rows } from "./util";
 
 // Short enough that the moderation table can show every character an admin approves.
 const TITLE_MAX = 120;
@@ -322,10 +322,10 @@ const plugin: SandboxedPlugin = {
 					collection: at.collection,
 					id: at.id,
 					who: user.id,
-					author: user.name || "Member",
+					author: plainText(user.name) || "Member",
 					stars,
-					title: asString(raw.title).slice(0, TITLE_MAX),
-					body: asString(raw.body).slice(0, BODY_MAX),
+					title: plainText(raw.title).slice(0, TITLE_MAX),
+					body: plainText(raw.body).slice(0, BODY_MAX),
 					guest: false,
 					email: "",
 					visitor: "",
@@ -342,7 +342,7 @@ const plugin: SandboxedPlugin = {
 				if (!at) return NOT_REVIEWABLE;
 				const raw = asRecord(routeCtx.input);
 				if (asString(raw.website)) return SPAM;
-				const name = asString(raw.name).slice(0, NAME_MAX);
+				const name = plainText(raw.name).slice(0, NAME_MAX);
 				if (!name) return NEED_NAME;
 				const askEmail = (await ctx.settings.get<boolean>("ask_guest_email")) === true;
 				const email = asString(raw.email).toLowerCase();
@@ -359,8 +359,8 @@ const plugin: SandboxedPlugin = {
 					who: guest.id,
 					author: name,
 					stars,
-					title: asString(raw.title).slice(0, TITLE_MAX),
-					body: asString(raw.body).slice(0, BODY_MAX),
+					title: plainText(raw.title).slice(0, TITLE_MAX),
+					body: plainText(raw.body).slice(0, BODY_MAX),
 					guest: true,
 					email: askEmail ? email.slice(0, 200) : "",
 					visitor: guest.visitor,

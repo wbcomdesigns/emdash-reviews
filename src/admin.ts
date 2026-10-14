@@ -1,7 +1,7 @@
 import type { PluginContext } from "emdash/plugin";
 
 import { allowedCollections, entryRefs, siteCollections, syncRating, waitingCount } from "./core";
-import { asBoolean, asNumber, asRecord, asString, asStringArray, rows } from "./util";
+import { asBoolean, asNumber, asRecord, asString, asStringArray, plainText, rows } from "./util";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
@@ -466,6 +466,9 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 					{
 						label: "Email",
 						blocks: [
+							...(settings.notify && !settings.notifyTo.includes("@")
+								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Record<string, unknown>]
+								: []),
 							{
 								type: "form",
 								block_id: "settings_notify",
@@ -480,7 +483,7 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 										type: "text_input",
 										action_id: "notify_to",
 										label: "Send the notice to",
-										help_text: "Leave blank to use the site admin.",
+										help_text: "Needed when the notice is on, for example you@yoursite.com.",
 										initial_value: settings.notifyTo,
 									},
 								],
@@ -548,7 +551,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			}
 			await ctx.storage.reviews.put(id, {
 				...row,
-				owner_reply: asString(values.body).slice(0, REPLY_MAX),
+				owner_reply: plainText(values.body).slice(0, REPLY_MAX),
 				owner_reply_at: new Date().toISOString(),
 				rev: crypto.randomUUID(),
 			});
@@ -581,8 +584,13 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			return renderSettings(ctx, { message: "Guest email saved.", type: "success" });
 		}
 		if (action === "save_notify") {
+			const to = asString(values.notify_to);
+			// No default address exists for a plugin to send to, so a switched-on notice needs one.
+			if (asBoolean(values.notify) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+				return renderSettings(ctx, { message: "Add the email address the notice should go to.", type: "error" });
+			}
 			await ctx.settings.set("notify", asBoolean(values.notify));
-			await ctx.settings.set("notify_to", asString(values.notify_to));
+			await ctx.settings.set("notify_to", to);
 			return renderSettings(ctx, { message: "Email notice saved.", type: "success" });
 		}
 	}

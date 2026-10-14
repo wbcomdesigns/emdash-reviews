@@ -501,6 +501,19 @@ describe("guest write", () => {
 		expect(JSON.stringify(all[0].data)).not.toContain("sam@");
 	});
 
+	it("stores typed HTML tags as plain text", async () => {
+		const { call, live, rt } = await open();
+		await call(
+			"write_guest",
+			{ collection: "posts", id: live, stars: 4, name: "Marco <i>Tester</i>", title: "<b>Clear</b> and useful", body: "Short and <b>bold</b> <script>x</script>test.", visitor: "tags" },
+			{ method: "POST" },
+		);
+		const row = (await rt.inspect.storage.list("reviews"))[0].data as Record<string, string>;
+		expect(row.author).toBe("Marco Tester");
+		expect(row.title).toBe("Clear and useful");
+		expect(row.body).toBe("Short and bold xtest.");
+	});
+
 	it("replaces the same visitor, refuses members-only, and ignores a filled honeypot", async () => {
 		const { call, live, rt } = await open();
 		const guest = { method: "POST" as const };

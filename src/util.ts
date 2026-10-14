@@ -8,6 +8,11 @@ export function asString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+/** Text a person typed, stored as plain text: anything shaped like an HTML tag is dropped, so it never shows as "<b>". */
+export function plainText(value: unknown): string {
+	return asString(value).replace(/<[^>]*>/g, "").replace(/[ \t]{2,}/g, " ").trim();
+}
+
 export function asBoolean(value: unknown): boolean {
 	return value === true || value === "true" || value === 1 || value === "1";
 }

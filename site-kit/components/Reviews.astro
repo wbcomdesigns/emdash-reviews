@@ -197,15 +197,19 @@ const zone = (await getSiteSettings())?.timezone || "";
 			return;
 		}
 		const anyone = health.who !== "members";
+		// Pages are cached the same for everyone, so ask a member route: a 401 means a guest.
+		const signedIn = Boolean((await api("reviews", "mine")).ok);
+		const canWrite = signedIn || anyone;
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const signInBox = root.querySelector<HTMLElement>("[data-wbr-signin]");
 		const signInLink = signInBox?.querySelector("a");
 		if (signInLink) signInLink.href = signInUrl();
-		if (form) form.hidden = !anyone;
-		if (signInBox) signInBox.hidden = anyone;
-		if (guestBox) guestBox.hidden = !anyone;
-		if (emailBox) emailBox.hidden = !anyone || health.askEmail !== true;
-		if (help) help.textContent = anyone ? S.bodyHelp : S.bodyHelpMembers;
+		if (form) form.hidden = !canWrite;
+		if (signInBox) signInBox.hidden = canWrite;
+		// A signed-in member writes as their account: no name or email boxes.
+		if (guestBox) guestBox.hidden = signedIn || !anyone;
+		if (emailBox) emailBox.hidden = signedIn || !anyone || health.askEmail !== true;
+		if (help) help.textContent = anyone || signedIn ? S.bodyHelp : S.bodyHelpMembers;
 
 		const load = async (nextPage = 1, append = false) => {
 			const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}&page=${nextPage}&sort=${encodeURIComponent(sort?.value || "newest")}`;
@@ -259,7 +263,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 			};
 			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
 			button?.setAttribute("aria-busy", "true");
-			const result = (await api("reviews", anyone ? "write_guest" : "write", payload)) as Result;
+			const result = (await api("reviews", signedIn ? "write" : "write_guest", payload)) as Result;
 			button?.removeAttribute("aria-busy");
 			tell(status, result, result.status === "published" ? S.thanksLive : S.thanksPending);
 			if (result.ok) {
