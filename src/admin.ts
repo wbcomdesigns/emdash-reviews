@@ -77,6 +77,11 @@ async function loadSettings(ctx: PluginContext) {
 	};
 }
 
+/** Soft-break a long word so a Block Kit table can wrap instead of scrolling sideways. */
+function wrapLong(text: string): string {
+	return text.replace(/\S{32,}/g, (word) => word.match(/.{1,32}/g)?.join("\u200b") ?? word);
+}
+
 function noteFor(row: Record<string, unknown>): string {
 	const bits: string[] = [];
 	if (row.guest === true) bits.push("Guest");
@@ -132,7 +137,7 @@ async function tableRows(
 		const body = row.pending_change === true ? asString(row.pending_body) : asString(row.body);
 		const stars = row.pending_change === true ? (asNumber(row.pending_stars) ?? row.stars) : row.stars;
 		return {
-		review: [title, body].filter(Boolean).join(": ") || "Stars only",
+		review: wrapLong([title, body].filter(Boolean).join(": ") || "Stars only"),
 		on: refs.get(asString(row.entry))?.title ?? "Removed page",
 		stars: stars ? `${stars} of 5` : "-",
 		author: asString(row.author),

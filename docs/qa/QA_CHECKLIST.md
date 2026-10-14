@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-14, 0.1.2 on lab :4331. Guest first, then admin via dev-bypass. Viewport 1440x900 light. Walked in the browser: G-1 form and summary, G-7 guest submit (thanks, waits), G-12 pages block hidden, G-13 dates "14 Oct 2026", G-14 sort from two reviews, email field `display:none` when off, Show more hidden on one page. Admin Published, Waiting and Settings: no welcome dialog. Kit-fetch tests cover the registry id `r_nt2pnhev44oaara3` and the slug fallback. Route-level: `prove-lab.sh` and 33 unit tests. Not walked: P-5 full keyboard, RTL, a live registry install (local lab uses the slug; registry id 404s here as expected).
+**Last walk:** 2026-10-14, 0.1.3. 35 tests (guest cap, NEED_STARS, Waiting wrap). Kit: stars-only empty copy, members-only sign-in, no preselected stars. 0.1.2 browser walk still holds. Guest first, then admin via dev-bypass. Viewport 1440x900 light. Walked in the browser: G-1 form and summary, G-7 guest submit (thanks, waits), G-12 pages block hidden, G-13 dates "14 Oct 2026", G-14 sort from two reviews, email field `display:none` when off, Show more hidden on one page. Admin Published, Waiting and Settings: no welcome dialog. Kit-fetch tests cover the registry id `r_nt2pnhev44oaara3` and the slug fallback. Route-level: `prove-lab.sh` and 33 unit tests. Not walked: P-5 full keyboard, RTL, a live registry install (local lab uses the slug; registry id 404s here as expected).
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -44,8 +44,8 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | M-1 | Write a review | Thanks message. Not in the list yet when moderation is on |
 | M-2 | Write again on the same post | It replaces the first. The live review and rating stay until the change is approved |
 | M-3 | Put `<b>` and `<img onerror>` in a review, have it approved | Shown as plain text. No script runs |
-| M-4 | Open My reviews | Own reviews with page name, link and status |
-| M-5 | Delete all my reviews (two clicks) | List empties. Each rating updates |
+| M-4 | Open My reviews | 0.2.0. Not in this release. Admin erase-by-email is the privacy path |
+| M-5 | Delete all my reviews (two clicks) | 0.2.0. Not in this release |
 | M-6 | Send another member's id in a request | Ignored |
 | M-7 | Review a draft, a missing entry, a closed collection | Refused: reviews are not open for that page |
 | M-8 | Nine writes inside an hour | The ninth is refused |

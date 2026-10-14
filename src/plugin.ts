@@ -32,6 +32,7 @@ const NOT_REVIEWABLE = {
 
 const NEED_NAME = { ok: false, error: { code: "NEED_NAME", message: "Add your name." } };
 const NEED_EMAIL = { ok: false, error: { code: "NEED_EMAIL", message: "Add your email." } };
+const NEED_STARS = { ok: false, error: { code: "NEED_STARS", message: "Choose a rating." } };
 const SPAM = { ok: false, error: { code: "SPAM", message: "Something went wrong. Try again." } };
 
 /** Collection and entry id from a request, or null when either is missing. */
@@ -47,8 +48,10 @@ async function reviewable(ctx: PluginContext, collection: string, id: string): P
 	return (await entryRef(ctx, collection, id))?.published === true;
 }
 
-function clampStars(value: unknown): number {
-	return Math.min(Math.max(Math.round(asNumber(value) ?? 5), 1), 5);
+function clampStars(value: unknown): number | null {
+	const n = asNumber(value);
+	if (n === null) return null;
+	return Math.min(Math.max(Math.round(n), 1), 5);
 }
 
 function whoSetting(value: unknown): "members" | "anyone" {
@@ -250,7 +253,7 @@ const plugin: SandboxedPlugin = {
 				const bars = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 				for (const row of published) {
 					const stars = clampStars(row.stars);
-					bars[stars as 1 | 2 | 3 | 4 | 5] += 1;
+					if (stars === 1 || stars === 2 || stars === 3 || stars === 4 || stars === 5) bars[stars] += 1;
 				}
 				const listed = published.filter((row) =>
 					row.has_text === false ? false : row.has_text === true || Boolean(asString(row.title) || asString(row.body)),
@@ -311,6 +314,8 @@ const plugin: SandboxedPlugin = {
 				if (!at) return NOT_REVIEWABLE;
 				const raw = asRecord(routeCtx.input);
 				if (!(await reviewable(ctx, at.collection, at.id))) return NOT_REVIEWABLE;
+				const stars = clampStars(raw.stars);
+				if (stars === null) return NEED_STARS;
 				if (await rateLimited(ctx, `write:${user.id}`)) return RATE_LIMITED;
 				return saveReview(ctx, {
 					entry: entryKey(at.collection, at.id),
@@ -318,7 +323,7 @@ const plugin: SandboxedPlugin = {
 					id: at.id,
 					who: user.id,
 					author: user.name || "Member",
-					stars: clampStars(raw.stars),
+					stars,
 					title: asString(raw.title).slice(0, TITLE_MAX),
 					body: asString(raw.body).slice(0, BODY_MAX),
 					guest: false,
@@ -343,6 +348,8 @@ const plugin: SandboxedPlugin = {
 				const email = asString(raw.email).toLowerCase();
 				if (askEmail && !email.includes("@")) return NEED_EMAIL;
 				if (!(await reviewable(ctx, at.collection, at.id))) return NOT_REVIEWABLE;
+				const stars = clampStars(raw.stars);
+				if (stars === null) return NEED_STARS;
 				const guest = await guestWho(ctx, { requestMeta: routeCtx.requestMeta as { ip?: string | null } | undefined }, raw);
 				if (await rateLimited(ctx, `write:${guest.id}`)) return RATE_LIMITED;
 				return saveReview(ctx, {
@@ -351,7 +358,7 @@ const plugin: SandboxedPlugin = {
 					id: at.id,
 					who: guest.id,
 					author: name,
-					stars: clampStars(raw.stars),
+					stars,
 					title: asString(raw.title).slice(0, TITLE_MAX),
 					body: asString(raw.body).slice(0, BODY_MAX),
 					guest: true,

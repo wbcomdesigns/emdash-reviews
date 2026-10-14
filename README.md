@@ -2,7 +2,7 @@
 
 Star ratings and moderated reviews for articles and pages.
 
-Status: 0.1.2. Public listing: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
+Status: 0.1.3. Public listing: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
 
 - Scope and schema: [SCOPE.md](SCOPE.md)
 - Plan and decisions: [PLAN.md](PLAN.md)

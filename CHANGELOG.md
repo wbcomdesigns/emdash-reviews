@@ -2,6 +2,15 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.1.3]
+
+- Fix: stars-only ratings no longer keep the "Be the first to review this" box.
+- Fix: a write without a rating is refused. Guests post to write_guest and do not 401 first.
+- Fix: members-only replaces the form with a sign-in link.
+- Fix: review cards keep the kit's spacing inside a blog theme.
+- Fix: Waiting wraps a long word so the Decide column stays on screen.
+- Docs: My reviews stays in 0.2.0. Privacy erase is find-by-email in admin.
+
 ## [0.1.2]
 
 - Fix: the site kit finds the plugin on a registry install (id `r_nt2pnhev44oaara3`) and still works from a local file install.
