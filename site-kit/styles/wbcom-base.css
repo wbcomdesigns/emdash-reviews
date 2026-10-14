@@ -11,6 +11,17 @@
  * (.wbp-, .wbr-, .roadmap-), never here.
  */
 
+/* Themes that switch dark mode with a class or attribute and never declare color-scheme
+   (version 3). The theme's own declaration still wins where it has one, because these only
+   name the scheme the theme is visibly in. */
+:is(.dark, [data-theme="dark"], [data-mode="dark"], [data-bx-mode="dark"]) .wb {
+	color-scheme: dark;
+}
+
+:is(.light, [data-theme="light"], [data-mode="light"], [data-bx-mode="light"]) .wb {
+	color-scheme: light;
+}
+
 /* The hidden attribute always wins. The rules below set display on .wb parts, which would
    otherwise show a part the script meant to keep hidden. */
 .wb[hidden],

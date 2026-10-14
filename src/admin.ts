@@ -207,10 +207,7 @@ function pager(view: View, page: number, pages: number, total: number) {
 		page < pages ? button("Next", page + 1) : null,
 	].filter(Boolean);
 	return [
-		{
-			type: "stats",
-			items: [{ label: "In this list", value: String(total), description: `Page ${page} of ${pages}` }],
-		},
+		{ type: "context", text: `${total} ${total === 1 ? "review" : "reviews"}. Page ${page} of ${pages}.` },
 		elements.length ? { type: "actions", elements } : null,
 	].filter(Boolean) as Array<Record<string, unknown>>;
 }
@@ -293,6 +290,11 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 			],
 		});
 	}
+	// Close returns to the same list page without the opened review, in the same row as the other buttons.
+	const close = { type: "button", label: "Close", action_id: "page", value: `${view.kind}|${view.page}|${encodeURIComponent(view.q)}` };
+	const last = blocks[blocks.length - 1];
+	if (last?.type === "actions" && Array.isArray(last.elements)) last.elements.push(close);
+	else blocks.push({ type: "actions", elements: [close] });
 	return blocks;
 }
 
@@ -396,6 +398,7 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 					{
 						label: "Where",
 						blocks: [
+							{ type: "context", text: "Tick the kinds of page visitors can review. Names come from the site." },
 							{
 								type: "form",
 								block_id: "settings_collections",
@@ -410,12 +413,12 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 								],
 								submit: { label: "Save", action_id: "save_collections" },
 							},
-							{ type: "context", text: "Tick the kinds of page visitors can review. Names come from the site." },
 						],
 					},
 					{
 						label: "Approval",
 						blocks: [
+							{ type: "context", text: "When this is on, a review waits here until you approve it. Star-only ratings follow the same rule." },
 							{
 								type: "form",
 								block_id: "settings_moderation",
@@ -429,12 +432,16 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 								],
 								submit: { label: "Save", action_id: "save_moderation" },
 							},
-							{ type: "context", text: "When this is on, a review waits here until you approve it. Star-only ratings follow the same rule." },
 						],
 					},
 					{
 						label: "Who can review",
 						blocks: [
+							{ type: "context", text: "Anyone is the default. A guest review always waits for approval." },
+							{
+								type: "context",
+								text: "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker.",
+							},
 							{
 								type: "form",
 								block_id: "settings_who",
@@ -459,11 +466,6 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 								],
 								submit: { label: "Save", action_id: "save_who" },
 							},
-							{ type: "context", text: "Anyone is the default. A guest review always waits for approval." },
-							{
-								type: "context",
-								text: "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker.",
-							},
 						],
 					},
 					{
@@ -472,6 +474,7 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 							...(settings.notify && !settings.notifyTo.includes("@")
 								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Record<string, unknown>]
 								: []),
+							{ type: "context", text: "At most one short notice an hour. It has no review text and no link." },
 							{
 								type: "form",
 								block_id: "settings_notify",
@@ -486,13 +489,13 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 										type: "text_input",
 										action_id: "notify_to",
 										label: "Send the notice to",
-										help_text: "Needed when the notice is on, for example you@yoursite.com.",
+										placeholder: "you@yoursite.com",
+										condition: { field: "notify", eq: true },
 										initial_value: settings.notifyTo,
 									},
 								],
 								submit: { label: "Save", action_id: "save_notify" },
 							},
-							{ type: "context", text: "At most one short notice an hour. It has no review text and no link." },
 						],
 					},
 				],

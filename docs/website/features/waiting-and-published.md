@@ -27,7 +27,7 @@ Waiting holds new reviews and changes to live reviews. When **Nothing waiting** 
 
 In the **Decide** menu:
 
-- **Read:** opens the full review above the table, with the full text.
+- **Read:** opens the full review. **Close** returns to the list.above the table, with the full text.
 - **Approve:** publishes the review. You see "Review published."
 - **Reject:** takes a new review off the queue. It never shows. You see "Review taken off the site."
 
@@ -46,7 +46,7 @@ This holds while **Approve reviews before they show** is on. See [Settings](../s
 
 Published lists the reviews visitors can see, newest first. In the **Decide** menu:
 
-- **Read:** opens the full review.
+- **Read:** opens the full review. **Close** returns to the list.
 - **Reply:** opens a box under the review. See below.
 - **Delete:** opens the review, with a **Delete** button that asks "Delete this review?" first. Confirm and the review is removed for good and leaves the average. You see "Review deleted." This cannot be undone.
 
