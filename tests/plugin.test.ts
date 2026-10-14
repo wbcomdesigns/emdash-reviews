@@ -96,6 +96,24 @@ describe("writing a review", () => {
 		expect(saved!.title).toHaveLength(120);
 	});
 
+	it("caps a guest write, clamps stars, and wraps a long word on Waiting", async () => {
+		const { call, live, rt } = await open();
+		expect(await call("write", { collection: "posts", id: live, body: "x" }, { method: "POST", user: ana })).toMatchObject({
+			ok: false,
+			error: { code: "NEED_STARS" },
+		});
+		await call(
+			"write_guest",
+			{ collection: "posts", id: live, stars: 9, name: "Sam", body: "x".repeat(5000), visitor: "long" },
+			{ method: "POST" },
+		);
+		const saved = (await rt.inspect.storage.list("reviews"))[0].data as { body: string; stars: number };
+		expect(saved.body).toHaveLength(1000);
+		expect(saved.stars).toBe(5);
+		const waiting = await rt.admin.loadPage("/waiting");
+		expect(JSON.stringify(waiting.blocks)).toContain("\u200b");
+	});
+
 	it("publishes at once when moderation is off", async () => {
 		const { call, write, live } = await open();
 		await call("admin", {
@@ -232,11 +250,11 @@ describe("settings", () => {
 			values: { collections: ["pages"] },
 			page: "/settings",
 		});
-		expect(await call("write", { collection: "posts", id: live, body: "x" }, { method: "POST", user: ana })).toMatchObject({
+		expect(await call("write", { collection: "posts", id: live, stars: 4, body: "x" }, { method: "POST", user: ana })).toMatchObject({
 			ok: false,
 			error: { code: "NOT_FOUND" },
 		});
-		expect(await call("write", { collection: "pages", id: page.id, body: "Nice." }, { method: "POST", user: ana })).toMatchObject({
+		expect(await call("write", { collection: "pages", id: page.id, stars: 4, body: "Nice." }, { method: "POST", user: ana })).toMatchObject({
 			ok: true,
 		});
 	});

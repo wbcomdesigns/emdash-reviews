@@ -1,4 +1,4 @@
-# Handoff: WB Reviews (2026-10-14, 0.1.2)
+# Handoff: WB Reviews (2026-10-14, 0.1.3)
 
 You are the one agent for this repo. Read this, then work.
 
@@ -12,23 +12,23 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-**Live after this release:** 0.1.2. Do not overwrite 0.1.0, 0.1.1 or 0.1.2.
+**Live after this release:** 0.1.3. Do not overwrite 0.1.0, 0.1.1, 0.1.2 or 0.1.3.
 
-- Package: `@vapvarun.bsky.social/reviews@0.1.2`
+- Package: `@vapvarun.bsky.social/reviews@0.1.3`
 - Page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
-- Covers: `images/banner.png` (light, 3000x1000, declared). Dark counterpart remains `images/banner-dark.png`.
 
 Closed in 0.1.2: #28 #29 #30.
+Closed in 0.1.3: #31 #32 #33 #34 #36. #35 deferred to #4 (My reviews is 0.2.0).
 
 ## Next
 
-- Watch `emdash-plugin info vapvarun.bsky.social reviews --version 0.1.2` until the listing uses 0.1.2
-- Confirm a standard `npm create emdash@latest` site with a registry install: every kit request should hit `r_nt2pnhev44oaara3` and succeed
-- #4 My reviews (0.2.0)
+- Watch listing for 0.1.3
+- Confirm a standard registry install: kit hits `r_nt2pnhev44oaara3`
+- #4 My reviews (0.2.0), which also covers #35
 - #19 trusted in-text block
 
 ## How to work
 
 - GitHub issues only. Never Basecamp for EmDash plugins.
 - No AI attribution in commits. No em-dashes.
-- Do not republish 0.1.0, 0.1.1 or 0.1.2. Do not `--allow-overwrite`.
+- Do not republish an old version. Do not `--allow-overwrite`.

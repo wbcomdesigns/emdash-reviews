@@ -1,3 +1,10 @@
+## 0.1.3
+
+- Fix: stars-only ratings no longer keep the "Be the first" empty box.
+- Fix: no preselected rating. Guests post to write_guest first.
+- Fix: members-only shows a sign-in link instead of the form.
+- Fix: review cards keep kit spacing. Waiting wraps a long word.
+
 ## 0.1.2
 
 - Fix: the kit finds the plugin on a registry install (`r_nt2pnhev44oaara3`) and still works on a local install.

@@ -12,6 +12,8 @@ cp $K/components/Reviews.astro $K/components/RatingBadge.astro src/components/
 3. Drop `<Reviews collection="posts" id={post.data.id} />` on the entry template, and `<RatingBadge collection="posts" id={post.data.id} />` on cards.
 4. Open Admin → Reviews → Settings. Tick the content types visitors can review. Save.
 
+A member's own reviews screen is not in 0.1. To erase a guest's reviews, use Admin → Published → find by email.
+
 Your site needs a sandbox runner in `astro.config.mjs`. Without one, EmDash skips sandboxed plugins at startup.
 
 Full steps: https://github.com/wbcomdesigns/emdash-reviews/blob/main/site-kit/README.md

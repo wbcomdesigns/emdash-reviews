@@ -66,6 +66,8 @@ Use the collection's real slug and the entry id. Reword visitor text in `src/lib
 
 A guest review always waits for approval. Stars alone are enough. Reword visitor text in `src/lib/reviews-strings.ts`.
 
+A member's own list (`MyReviews.astro`) is not in 0.1. Privacy erase is Admin → Published → find by email. The member screen is 0.2.0.
+
 ## Lab
 
 ```bash

@@ -43,6 +43,10 @@ const zone = (await getSiteSettings())?.timezone || "";
 		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-more hidden>{S.showMore}</button>
 	</div>
 
+	<p class="wb-empty" data-wbr-signin hidden>
+		<strong>{S.signInWrite}</strong>{" "}
+		<a href="/_emdash/admin/login">{S.signInLink}</a>
+	</p>
 	<form class="wb-form" data-wbr-form novalidate>
 		<h3>{S.writeHeading}</h3>
 		<fieldset class="wb-field" style="border:0;margin:0;padding:0;">
@@ -51,7 +55,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 				{
 					[5, 4, 3, 2, 1].map((n) => (
 						<>
-							<input type="radio" name="stars" id={`${uid}-s${n}`} value={n} checked={n === 5} />
+							<input type="radio" name="stars" id={`${uid}-s${n}`} value={n} required />
 							<label for={`${uid}-s${n}`}>
 								<span aria-hidden="true">★</span>
 								<span class="wb-sr">{S.star(n)}</span>
@@ -151,11 +155,15 @@ const zone = (await getSiteSettings())?.timezone || "";
 		}
 	}
 
-	function renderList(root: HTMLElement, items: Review[], replace: boolean) {
+	function renderList(root: HTMLElement, items: Review[], replace: boolean, count = 0) {
 		const list = root.querySelector<HTMLElement>("[data-wbr-list]");
 		if (!list) return;
 		if (!items.length && replace) {
-			list.innerHTML = `<div class="wb-empty"><p><strong>${esc(S.emptyTitle)}</strong></p><p class="wb-muted">${esc(S.emptyHint)}</p></div>`;
+			if (count > 0) {
+				list.innerHTML = `<div class="wb-empty"><p><strong>${esc(S.starsOnlyTitle)}</strong></p><p class="wb-muted">${esc(S.starsOnlyHint(count))}</p></div>`;
+			} else {
+				list.innerHTML = `<div class="wb-empty"><p><strong>${esc(S.emptyTitle)}</strong></p><p class="wb-muted">${esc(S.emptyHint)}</p></div>`;
+			}
 			return;
 		}
 		const html = items
@@ -189,6 +197,12 @@ const zone = (await getSiteSettings())?.timezone || "";
 			return;
 		}
 		const anyone = health.who !== "members";
+		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
+		const signInBox = root.querySelector<HTMLElement>("[data-wbr-signin]");
+		const signInLink = signInBox?.querySelector("a");
+		if (signInLink) signInLink.href = signInUrl();
+		if (form) form.hidden = !anyone;
+		if (signInBox) signInBox.hidden = anyone;
 		if (guestBox) guestBox.hidden = !anyone;
 		if (emailBox) emailBox.hidden = !anyone || health.askEmail !== true;
 		if (help) help.textContent = anyone ? S.bodyHelp : S.bodyHelpMembers;
@@ -209,7 +223,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 			if (barsNode) renderBars(barsNode, (data.bars ?? {}) as Bars, count);
 			page = Number(data.page) || 1;
 			pages = Number(data.pages) || 1;
-			renderList(root, (data.items ?? []) as Review[], !append);
+			renderList(root, (data.items ?? []) as Review[], !append, count);
 			if (sortbar) sortbar.hidden = (Number(data.total) || 0) < 2;
 			if (more) more.hidden = page >= pages;
 		};
@@ -222,16 +236,20 @@ const zone = (await getSiteSettings())?.timezone || "";
 			void load(page + 1, true);
 		});
 
-		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const status = root.querySelector<HTMLElement>("[data-wbr-status]");
 		form?.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			if (!status) return;
 			const fields = new FormData(form);
+			const stars = Number(fields.get("stars"));
+			if (!stars || stars < 1 || stars > 5) {
+				tell(status, { ok: false, error: { code: "NEED_STARS" } }, "");
+				return;
+			}
 			const payload = {
 				collection,
 				id,
-				stars: Number(fields.get("stars")),
+				stars,
 				title: String(fields.get("title") ?? ""),
 				body: String(fields.get("body") ?? ""),
 				name: String(fields.get("name") ?? ""),
@@ -241,10 +259,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 			};
 			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
 			button?.setAttribute("aria-busy", "true");
-			let result = (await api("reviews", "write", payload)) as Result;
-			if (!result.ok && result.error?.code === "SIGN_IN_REQUIRED") {
-				result = (await api("reviews", "write_guest", payload)) as Result;
-			}
+			const result = (await api("reviews", anyone ? "write_guest" : "write", payload)) as Result;
 			button?.removeAttribute("aria-busy");
 			tell(status, result, result.status === "published" ? S.thanksLive : S.thanksPending);
 			if (result.ok) {
