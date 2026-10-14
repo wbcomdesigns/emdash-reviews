@@ -15,16 +15,18 @@ This file is the contract for the plugin. Code, tests, docs and cards all follow
 - **Block inside post text:** only with a trusted install. The registry install is the whole product without it.
 - **Admin pages:** Waiting, Published, Settings, plus the dashboard card. Content types are tick-boxes (`schema:read`).
 - **Site time zone and date format** come from EmDash's site settings. Dates on reviews use them.
+- **Registry install address:** a registry install is not at `/_emdash/api/plugins/reviews/`. It is at `r_nt2pnhev44oaara3`. The shared kit (`pluginFetch`) tries that id, then the slug. No other kit file writes the plugin URL.
+- **Closed content types:** Reviews and the rating badge draw nothing when the collection is not in Settings. The visitor is not shown a form that then fails.
 
 ## Purpose
 
 Let visitors read reviews and star ratings on any piece of content, let signed-in members write one, and let the owner approve them before they show. Search engines get the rating as structured data.
 
-**Who it is for:** Any EmDash site that wants social proof on posts, products, courses, recipes or listings.
+**Who it is for:** Any EmDash site that wants social proof on articles and pages.
 
 **WordPress source:** None. New for EmDash. The review, moderation and rating logic was proven in Listora 0.3.x.
 
-**Brand:** WB Reviews. Colour: warm orange. The full logo set is in `~/Documents/brand logos/wb-reviews/` (built by the pipeline on 2026-10-13, mark awaiting the owner's final look). This repo carries `icon.png`, `images/banner.png` (light, 1200x400) and `images/banner-dark.png` from it. The registry accepts one banner; light is declared. Do not draw or edit a logo here.
+**Brand:** WB Reviews. Colour: warm orange. The full logo set is in `~/Documents/brand logos/wb-reviews/`. This repo carries `icon.png`, `images/banner.png` (light, 3000x1000) and `images/banner-dark.png` from it. The registry accepts one banner; light is declared. Do not draw or edit a logo here.
 
 ## Fits every kind of site
 
@@ -168,7 +170,7 @@ Row id: `<collection>:<entryId>`. Indexes: `collection`.
 
 ## Routes
 
-Base: `/_emdash/api/plugins/reviews/<name>`.
+Base: `/_emdash/api/plugins/<id>/<name>`. On a registry install `<id>` is `r_nt2pnhev44oaara3`. On a local install it is `reviews`. The kit's `pluginFetch()` tries both.
 
 | Route | Who | Methods | Input | Returns |
 | --- | --- | --- | --- | --- |

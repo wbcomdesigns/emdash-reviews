@@ -10,7 +10,7 @@
 	"repo": "https://github.com/wbcomdesigns/emdash-reviews",
 	"author": { "name": "Wbcom Designs", "url": "https://wbcomdesigns.com", "email": "security@wbcomdesigns.com" },
 	"security": { "email": "security@wbcomdesigns.com" },
-	"description": "Star ratings and moderated reviews for any content: posts, pages, products or listings.",
+	"description": "Star ratings and moderated reviews for articles and pages.",
 	"sections": {
 		"description": { "file": "./docs/registry/description.md" },
 		"installation": { "file": "./docs/registry/installation.md" },

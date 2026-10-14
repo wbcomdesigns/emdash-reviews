@@ -26,9 +26,9 @@ ok "summary"
 
 demo="$(curl -sf "$BASE/reviews-demo")" || fail "reviews-demo page"
 echo "$demo" | grep -q 'data-wbr-form' || fail "demo mounts Reviews"
-echo "$demo" | grep -q 'data-wbr-badge' || fail "demo mounts RatingBadge"
-echo "$demo" | grep -q 'data-wbr-mine' || fail "demo mounts MyReviews"
-ok "demo mounts Reviews, RatingBadge and MyReviews"
+echo "$demo" | grep -q 'data-wbr-mine' && fail "demo still mounts MyReviews (0.2.0)"
+[[ -f "$LAB/src/components/RatingBadge.astro" ]] || fail "RatingBadge copied into the lab"
+ok "demo mounts Reviews; RatingBadge is in the kit"
 
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
 curl -sf -c "$JAR" -o /dev/null "$BASE/_emdash/api/setup/dev-bypass?redirect=/"

@@ -26,6 +26,14 @@ const { collection, id } = Astro.props;
 		groups.set(key, [...(groups.get(key) ?? []), node]);
 	});
 	groups.forEach(async (nodes, collection) => {
+		const health = await api("reviews", "health");
+		const open = Array.isArray(health.collections) ? (health.collections as string[]) : [];
+		if (health.ok && !open.includes(collection)) {
+			nodes.forEach((node) => {
+				node.hidden = true;
+			});
+			return;
+		}
 		const ids = [...new Set(nodes.map((node) => node.dataset.id ?? ""))].slice(0, 50);
 		const data = await api("reviews", `summary?collection=${encodeURIComponent(collection)}&ids=${encodeURIComponent(ids.join(","))}`);
 		const ratings = (data.ratings ?? {}) as Record<string, { average: number; count: number }>;

@@ -5,29 +5,21 @@
  */
 import { getEmDashCollection } from "emdash";
 import Base from "../layouts/Base.astro";
-import MyReviews from "../components/MyReviews.astro";
-import RatingBadge from "../components/RatingBadge.astro";
 import Reviews from "../components/Reviews.astro";
 
 const { entries } = await getEmDashCollection("posts", { limit: 3 });
 const first = entries[0];
 ---
 
-<Base title="Reviews demo" description="Lab page for the Reviews and Ratings kit.">
-	<div style="max-width: 46rem; margin-inline: auto; padding: 2rem 1rem; display: grid; gap: 3rem;">
-		<section>
-			<h1>Reviews demo</h1>
-			<ul>
-				{
-					entries.map((post) => (
-						<li>
-							{post.data.title} <RatingBadge collection="posts" id={post.data.id} />
-						</li>
-					))
-				}
-			</ul>
-		</section>
-		{first ? <Reviews collection="posts" id={first.data.id} heading={`Reviews of ${first.data.title}`} /> : <p>No posts in the lab yet.</p>}
-		<MyReviews />
+<Base title="Reviews" description="Lab page for the Reviews and Ratings kit.">
+	<div style="max-width: 42rem; margin-inline: auto; padding: 1.25rem 1rem 2rem;">
+		{
+			first ? (
+				<Reviews collection="posts" id={first.data.id} heading="Reviews" />
+			) : (
+				<p>No posts in the lab yet.</p>
+			)
+		}
+		<Reviews collection="pages" id="closed-check" heading="Closed" />
 	</div>
 </Base>
