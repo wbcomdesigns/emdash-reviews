@@ -80,6 +80,10 @@ A guest review always waits for approval. Stars alone are enough. Reword visitor
 
 A member deletes their own reviews at `/account/reviews/`. Guest reviews are still removed by an admin: Admin, Reviews, Published, find by email.
 
+## In-text blocks
+
+Copy `site-kit/blocks/` to `src/reviews-block/` and add `reviewsBlock()` under `plugins` in `astro.config.mjs`. The install guide has the lines. The registry plugin does not need this.
+
 ## Lab
 
 ```bash

@@ -67,6 +67,28 @@ import RatingBadge from "../../components/RatingBadge.astro";
 
 A badge shows nothing for a page that has no rating, so it is safe to add to every card. Many badges on one page load with one request.
 
+## For the in-text block
+
+This is optional. The plugin from the registry does not add a block inside post text. To put **Reviews** or **Rating** in the middle of a post, copy the block and switch it on as trusted site code.
+
+```bash
+mkdir -p src/reviews-block
+cp -R path/to/emdash-reviews/site-kit/blocks/. src/reviews-block/
+```
+
+In `astro.config.mjs`:
+
+```js
+import { reviewsBlock } from "./src/reviews-block/descriptor.mjs";
+
+emdash({
+	plugins: [reviewsBlock()],
+	// sandboxed: [reviews] stays as it is
+});
+```
+
+Restart the site. In a post or page, type `/reviews` and choose **Reviews**, or `/rating` and choose **Rating**. EmDash will not insert a block until a field has a value, so each block includes **What to show**, already set. **Reviews** can also take a heading, and that heading can stay blank. Both show the entry they sit in. Leave this out and the registry plugin works the same.
+
 ## My reviews
 
 The copy above adds `/account/reviews/`. A guest sees **Sign in**, and that link brings them back to this page. A signed-in member sees each review with the page name, stars, the text, and a status: **Awaiting approval**, **Published**, or **Not approved**.

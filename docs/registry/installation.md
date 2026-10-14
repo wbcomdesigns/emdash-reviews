@@ -17,6 +17,8 @@ Copy `lib/wbcom-kit.ts` and `styles/wbcom-base.css` only if your site has no cop
 4. Add a menu link **My reviews** to `/account/reviews/`. A member sees their reviews there. **Delete all my reviews** asks for a second click.
 5. Open Admin, Reviews, Settings. Tick the content types visitors can review. Save.
 
+Optional: copy `site-kit/blocks/` to `src/reviews-block/` and add `reviewsBlock()` under `plugins` in `astro.config.mjs` to insert **Reviews** or **Rating** inside a post. The install guide has the lines. The registry plugin works without that.
+
 Guest reviews are still removed by an admin: Admin, Reviews, Published, find by email.
 
 Your site needs a sandbox runner in `astro.config.mjs`. Without one, EmDash skips sandboxed plugins at startup.

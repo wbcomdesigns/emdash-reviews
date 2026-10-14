@@ -1,0 +1,11 @@
+---
+import { resolveEmDashPath } from "emdash";
+import Reviews from "../components/Reviews.astro";
+
+const node = (Astro.props.node ?? {}) as { heading?: string };
+const heading = String(node.heading || "").trim();
+const resolved = await resolveEmDashPath(Astro.url.pathname);
+const id = resolved?.entry?.data?.id ? String(resolved.entry.data.id) : "";
+---
+
+{resolved && id ? <Reviews collection={resolved.collection} id={id} heading={heading || undefined} /> : null}

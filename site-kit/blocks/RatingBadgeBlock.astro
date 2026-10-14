@@ -1,0 +1,9 @@
+---
+import { resolveEmDashPath } from "emdash";
+import RatingBadge from "../components/RatingBadge.astro";
+
+const resolved = await resolveEmDashPath(Astro.url.pathname);
+const id = resolved?.entry?.data?.id ? String(resolved.entry.data.id) : "";
+---
+
+{resolved && id ? <RatingBadge collection={resolved.collection} id={id} /> : null}
