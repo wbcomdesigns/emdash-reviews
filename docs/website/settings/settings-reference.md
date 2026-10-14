@@ -20,7 +20,7 @@ Save shows "Content types saved." If you tick nothing, you see "Reviews are clos
 
 Save shows "Approval saved."
 
-Guest reviews always wait for approval, even when this is off. In version 0.1.4, a review written on your page goes through the guest path (see [Writing a review as a visitor](../features/write-a-review.md)), so in practice every review waits whatever this switch says.
+Guest reviews always wait for approval, even when this is off. Reviews from signed-in members follow this switch: with it off, a member's review shows at once.
 
 ## Who can review
 

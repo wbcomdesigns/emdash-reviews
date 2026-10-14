@@ -33,3 +33,5 @@ EmDash plugins from the registry run in a safe sandbox and cannot add pages or s
 ## Next step
 
 [Install WB Reviews](install.md).
+
+Then see [Use cases](use-cases.md) for ideas and settings, and [Posts and pages](posts-and-pages.md) for the template steps.
