@@ -1,6 +1,9 @@
 **Why is there no reviews block after install?**
 The plugin cannot add pages or CSS. Copy the site kit components onto your templates, then reload.
 
+**Why is there no review form on a page?**
+That content type is not ticked under Admin → Reviews → Settings. Tick it, or the form stays hidden.
+
 **Can guests write a review?**
 Yes, when Settings says anyone can review. A guest gives a name, and an email if you ask for one. Guest reviews always wait for approval.
 

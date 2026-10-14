@@ -1,4 +1,4 @@
-WB Reviews adds star ratings and moderated reviews to any EmDash content: posts, pages, products or listings. Visitors read the average, the star breakdown and the written reviews. Members or guests leave one review per page. You approve what goes live.
+WB Reviews adds star ratings and moderated reviews to articles and pages. Visitors read the average, the star breakdown and the written reviews. Members or guests leave one review per page. You approve what goes live.
 
 ## What you get
 

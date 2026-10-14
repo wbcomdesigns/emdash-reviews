@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-14, presentation bar after 0.1.0 publish. `/wp-card-qa` + `/ux-foundation` on lab :4331 and emdash-local :4321. Guest first. Viewports 1440, 1024, 768, 390. Light and dark via `color-scheme` and `data-theme`. Walked: P-1 no sideways scroll, P-3 Submit 5.57:1 light / 7.88:1 dark, body and empty text above 4.5:1 against a real page background, P-4 visible kit controls 44px, P-6 empty state, P-7 no raw ids, T-8 hidden badges `display:none` and 0x0, focus-visible 2px brand ring on button, input and sort. Fail: unselected star glyphs 1.32:1 (P-3 / WCAG 1.4.11), see GitHub. Not walked: P-5 full keyboard pass, RTL live, 11+ reviews so Show more is visible, theme matrix beyond this site.
+**Last walk:** 2026-10-14, 0.1.2 on lab :4331. Guest first, then admin via dev-bypass. Viewport 1440x900 light. Walked in the browser: G-1 form and summary, G-7 guest submit (thanks, waits), G-12 pages block hidden, G-13 dates "14 Oct 2026", G-14 sort from two reviews, email field `display:none` when off, Show more hidden on one page. Admin Published, Waiting and Settings: no welcome dialog. Kit-fetch tests cover the registry id `r_nt2pnhev44oaara3` and the slug fallback. Route-level: `prove-lab.sh` and 33 unit tests. Not walked: P-5 full keyboard, RTL, a live registry install (local lab uses the slug; registry id 404s here as expected).
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -32,6 +32,9 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | G-9 | Setting anyone: fill the hidden honeypot field | Rejected |
 | G-10 | Setting members: call `write_guest` directly | Refused |
 | G-11 | Email setting on: submit as a guest | The form asks for an email. It is never in any public response or in the page |
+| G-12 | Open Reviews on a content type that is not ticked | The whole block, including the form, is hidden |
+| G-13 | Read a published review date | It is a day a person reads (14 Oct 2026), not 2026-10-14 |
+| G-14 | One written review, then a second | Sort is hidden until the second review is live |
 | G-90 | Change three phrases in the wording file (a button, an empty state, an error), rebuild | Each change shows everywhere that phrase is used. No English left on screen that is not in the file |
 
 ## Member (subscriber role)
@@ -83,3 +86,4 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 Closed by 0.1.0: dark Submit contrast (now 7.88:1) and hidden badge `display:none`.
 Closed by 0.1.1: empty stars use `--wb-muted`, reply/honeypot use logical CSS, Show more is quiet, registry covers are 1200x400 light and dark.
+Closed by 0.1.2: registry kit address, hidden form on a closed type, locale dates, badge plural, sort from two reviews, banner 3000x1000.

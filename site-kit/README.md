@@ -42,7 +42,7 @@ Do not copy `site-kit/lab/`. That page is for the plugin lab only.
 
 ## 3. Drop the components on your pages
 
-On a post, product or any entry the owner ticked in Settings:
+On an article, page or any entry the owner ticked in Settings:
 
 ```astro
 import Reviews from "../components/Reviews.astro";
@@ -56,7 +56,7 @@ import RatingBadge from "../components/RatingBadge.astro";
 <RatingBadge collection="posts" id={post.data.id} />
 ```
 
-Use the collection's real slug and the entry id. Reword visitor text in `src/lib/reviews-strings.ts`.
+Use the collection's real slug and the entry id. Reword visitor text in `src/lib/reviews-strings.ts`. The kit finds the plugin on a registry install and on a local install. Do not write `/_emdash/api/plugins/...` in your own files.
 
 ## 4. Open it as an owner
 

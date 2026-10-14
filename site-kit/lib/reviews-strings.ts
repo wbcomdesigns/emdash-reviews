@@ -44,7 +44,8 @@ export const reviews = {
 };
 
 export const badge = {
-	sr: (avg: string, count: number) => `rated ${avg} out of 5 from ${count} reviews`,
+	sr: (avg: string, count: number) =>
+		`rated ${avg} out of 5 from ${count} ${count === 1 ? "review" : "reviews"}`,
 };
 
 export const mine = {

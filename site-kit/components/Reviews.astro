@@ -5,6 +5,7 @@
  * The markup is the same for every visitor, so the page stays safe to cache.
  * Who can write is decided in the browser from the health route.
  */
+import { getSiteSettings } from "emdash";
 import "../styles/wbcom-base.css";
 import "../styles/reviews.css";
 import { reviews as S } from "../lib/reviews-strings";
@@ -17,9 +18,10 @@ interface Props {
 
 const { collection, id, heading = S.heading } = Astro.props;
 const uid = `wbr-${id}`;
+const zone = (await getSiteSettings())?.timezone || "";
 ---
 
-<section class="wb" data-wbr data-collection={collection} data-id={id} aria-labelledby={`${uid}-h`}>
+<section class="wb" data-wbr data-collection={collection} data-id={id} data-zone={zone} aria-labelledby={`${uid}-h`}>
 	<div class="wb-summary">
 		<h2 id={`${uid}-h`}>{heading}</h2>
 		<p class="wb-muted" data-wbr-summary aria-live="polite">{S.loading}</p>
@@ -27,7 +29,7 @@ const uid = `wbr-${id}`;
 
 	<div class="wbr-bars" data-wbr-bars hidden></div>
 
-	<div class="wbr-toolbar">
+	<div class="wbr-toolbar" data-wbr-sortbar hidden>
 		<label class="wb-label" for={`${uid}-sort`}>{S.sort}</label>
 		<select class="wb-input" id={`${uid}-sort`} data-wbr-sort>
 			<option value="newest">{S.sortNewest}</option>
@@ -138,6 +140,17 @@ const uid = `wbr-${id}`;
 			.join("");
 	}
 
+	function day(value?: string): string {
+		const date = new Date(String(value || ""));
+		if (Number.isNaN(date.getTime())) return "";
+		const timeZone = document.querySelector<HTMLElement>("[data-zone]")?.dataset.zone || undefined;
+		try {
+			return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone });
+		} catch {
+			return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+		}
+	}
+
 	function renderList(root: HTMLElement, items: Review[], replace: boolean) {
 		const list = root.querySelector<HTMLElement>("[data-wbr-list]");
 		if (!list) return;
@@ -148,7 +161,7 @@ const uid = `wbr-${id}`;
 		const html = items
 			.map(
 				(item) =>
-					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(String(item.createdAt ?? "").slice(0, 10))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body || "")}</p>${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(String(item.owner_reply_at).slice(0, 10))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
+					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body || "")}</p>${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
 			)
 			.join("");
 		if (replace) list.innerHTML = `<ul class="wb-list">${html}</ul>`;
@@ -162,6 +175,7 @@ const uid = `wbr-${id}`;
 		const barsNode = root.querySelector<HTMLElement>("[data-wbr-bars]");
 		const more = root.querySelector<HTMLButtonElement>("[data-wbr-more]");
 		const sort = root.querySelector<HTMLSelectElement>("[data-wbr-sort]");
+		const sortbar = root.querySelector<HTMLElement>("[data-wbr-sortbar]");
 		const guestBox = root.querySelector<HTMLElement>("[data-wbr-guest]");
 		const emailBox = root.querySelector<HTMLElement>("[data-wbr-email]");
 		const help = root.querySelector<HTMLElement>("[data-wbr-help]");
@@ -169,6 +183,11 @@ const uid = `wbr-${id}`;
 		let pages = 1;
 
 		const health = await api("reviews", "health");
+		const open = Array.isArray(health.collections) ? (health.collections as string[]) : [];
+		if (health.ok && Array.isArray(health.collections) && !open.includes(collection)) {
+			root.hidden = true;
+			return;
+		}
 		const anyone = health.who !== "members";
 		if (guestBox) guestBox.hidden = !anyone;
 		if (emailBox) emailBox.hidden = !anyone || health.askEmail !== true;
@@ -191,6 +210,7 @@ const uid = `wbr-${id}`;
 			page = Number(data.page) || 1;
 			pages = Number(data.pages) || 1;
 			renderList(root, (data.items ?? []) as Review[], !append);
+			if (sortbar) sortbar.hidden = (Number(data.total) || 0) < 2;
 			if (more) more.hidden = page >= pages;
 		};
 		await load(1, false);

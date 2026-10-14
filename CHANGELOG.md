@@ -2,6 +2,16 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.1.2]
+
+- Fix: the site kit finds the plugin on a registry install (id `r_nt2pnhev44oaara3`) and still works from a local file install.
+- Fix: shared `wbcom-base.css` v2 hides `[hidden]` parts, so Show more and guest fields stay off until they are needed.
+- Fix: Reviews and the rating badge draw nothing on a content type that is not ticked in Settings.
+- Fix: review dates read in the visitor's language and the site's time zone.
+- Fix: the rating badge screen-reader line uses "review" or "reviews".
+- Fix: the sort control shows from two written reviews up.
+- Fix: registry banner is the 3000x1000 brand file. Description names articles and pages, not listings.
+
 ## [0.1.1]
 
 - Fix: registry cover is 1200x400 (the listing slot is 3:1). The old 1200x305 lockup was cropped to "WBReview".

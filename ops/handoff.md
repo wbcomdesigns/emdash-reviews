@@ -1,4 +1,4 @@
-# Handoff: WB Reviews (2026-10-14, 0.1.1 published)
+# Handoff: WB Reviews (2026-10-14, 0.1.2)
 
 You are the one agent for this repo. Read this, then work.
 
@@ -12,19 +12,18 @@ You are the one agent for this repo. Read this, then work.
 
 ## Where it stands
 
-**Live:** 0.1.1 tagged, published, GitHub release created. Listing check for 0.1.1 is in progress. Do not overwrite 0.1.0 or 0.1.1.
+**Live after this release:** 0.1.2. Do not overwrite 0.1.0, 0.1.1 or 0.1.2.
 
-- Tag `v0.1.1` on `cad6ab1` (merge of #27)
-- Package: `@vapvarun.bsky.social/reviews@0.1.1`
+- Package: `@vapvarun.bsky.social/reviews@0.1.2`
 - Page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
-- Release: https://github.com/wbcomdesigns/emdash-reviews/releases/tag/v0.1.1
-- Covers: `images/banner.png` (light, 1200x400, declared) and `images/banner-dark.png`. The registry schema accepts one banner.
+- Covers: `images/banner.png` (light, 3000x1000, declared). Dark counterpart remains `images/banner-dark.png`.
 
-Closed in 0.1.1: #22 #23 #24 #25 #26.
+Closed in 0.1.2: #28 #29 #30.
 
 ## Next
 
-- Watch `emdash-plugin info vapvarun.bsky.social reviews --version 0.1.1` until the listing uses the new cover
+- Watch `emdash-plugin info vapvarun.bsky.social reviews --version 0.1.2` until the listing uses 0.1.2
+- Confirm a standard `npm create emdash@latest` site with a registry install: every kit request should hit `r_nt2pnhev44oaara3` and succeed
 - #4 My reviews (0.2.0)
 - #19 trusted in-text block
 
@@ -32,4 +31,4 @@ Closed in 0.1.1: #22 #23 #24 #25 #26.
 
 - GitHub issues only. Never Basecamp for EmDash plugins.
 - No AI attribution in commits. No em-dashes.
-- Do not republish 0.1.0 or 0.1.1. Do not `--allow-overwrite`.
+- Do not republish 0.1.0, 0.1.1 or 0.1.2. Do not `--allow-overwrite`.
