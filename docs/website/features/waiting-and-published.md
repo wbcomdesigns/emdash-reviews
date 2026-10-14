@@ -14,7 +14,7 @@ Each screen opens with three numbers: **Waiting**, **Published this week** and *
 | Page | The title of the page being reviewed, or "Removed page" if it no longer exists |
 | Stars | For example "4 of 5" |
 | Author | The name the visitor gave |
-| Note | **Guest** for a visitor without an account. **Change waiting** when someone rewrote a live review |
+| Note | **Guest** for a visitor without an account, **Member** for a signed-in member. **Change waiting** when someone rewrote a live review |
 | Decision | A **Decide** menu |
 
 The table shows 25 reviews at a time. Use **Next** and **Previous** to move, and the "In this list" number to see the total.

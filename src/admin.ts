@@ -105,7 +105,7 @@ function reviewText(row: Record<string, unknown>): { title: string; body: string
 
 function noteFor(row: Record<string, unknown>): string {
 	const bits: string[] = [];
-	if (row.guest === true) bits.push("Guest");
+	bits.push(row.guest === true ? "Guest" : "Member");
 	if (row.pending_change === true) bits.push("Change waiting");
 	return bits.join(" · ");
 }
