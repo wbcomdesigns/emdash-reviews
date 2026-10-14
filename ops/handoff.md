@@ -23,7 +23,7 @@ This branch: #39 admin standard.
 
 ## Next
 
-- Finish #39: walk admin at 1440 light/dark and 390, then PR. Do not publish until the owner says so.
+- `0.1.5` documents the guest 401 (issue #47). The probe stays. Do not publish until the owner says so.
 - #4 My reviews (0.2.0), which also covers #35
 - #19 trusted in-text block
 
