@@ -33,7 +33,7 @@ export const reviews = {
 	thanksLive: "Thanks. Your review is live.",
 	signIn: "Sign in to continue.",
 	signInLink: "Sign in",
-	signInWrite: "Sign in to write a review.",
+	signInWrite: "Only members can review this page.",
 	needStars: "Choose a rating.",
 	closed: "Reviews are not open for that page.",
 	rateLimited: "Too many requests. Try again in an hour.",

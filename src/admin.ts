@@ -77,7 +77,8 @@ async function loadSettings(ctx: PluginContext) {
 		moderate: moderate !== false,
 		who: asString(who) === "members" ? "members" : "anyone",
 		askEmail: askEmail === true,
-		notify: notify !== false,
+		// Off until the owner turns it on with an address: a plugin cannot read the admin email.
+		notify: notify === true,
 		notifyTo: asString(notifyTo),
 	};
 }
@@ -217,7 +218,8 @@ function pager(view: View, page: number, pages: number, total: number) {
 async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Record<string, unknown>>> {
 	if (!view.detailId && !view.replyId) return [];
 	const id = view.detailId || view.replyId || "";
-	const row = asRecord(await ctx.storage.reviews.get(id));
+	// Storage returns the data without its key; the buttons below need the id in their value.
+	const row: Record<string, unknown> = { ...asRecord(await ctx.storage.reviews.get(id)), id };
 	if (!row.entry) return [{ type: "banner", title: "That review no longer exists.", variant: "alert" }];
 	const text = reviewText(row);
 	const refs = await entryRefs(ctx, [row]);
@@ -285,8 +287,8 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 					label: "Delete",
 					action_id: "decide",
 					style: "danger",
-					value: stamped("reject", row, view),
-					confirm: confirm("Delete this review?", "It leaves the site. This cannot be undone.", "Delete"),
+					value: stamped("delete", row, view),
+					confirm: confirm("Delete this review?", "It leaves the site and is removed for good. This cannot be undone.", "Delete"),
 				},
 			],
 		});
@@ -307,7 +309,8 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 		: [
 				["Read", "read"],
 				["Reply", "reply"],
-				["Delete", "reject"],
+				// Menus cannot confirm, so Delete opens the review, whose Delete button asks first.
+				["Delete", "ask_delete"],
 			];
 	const table = await tableRows(ctx, slice, current, actions);
 	const title = waiting ? "Waiting" : "Published";
@@ -607,12 +610,17 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 	if (type === "block_action" && asString(raw.action_id) === "decide") {
 		const { action, stamp, id, kind: fromStamp, page: keep, q } = parseStamped(raw.value);
 		const stay: View = { kind: fromStamp, page: keep, q };
-		if (action === "read") return renderList(ctx, { ...stay, detailId: id });
+		if (action === "read" || action === "ask_delete") return renderList(ctx, { ...stay, detailId: id });
 		if (action === "reply") return renderList(ctx, { ...stay, kind: "published", replyId: id, detailId: id });
 		const row = asRecord(await ctx.storage.reviews.get(id));
 		if (!row.entry) return renderList(ctx, stay, { message: "That review no longer exists.", type: "error" });
 		if (asString(row.rev) !== stamp) {
 			return renderList(ctx, stay, { message: "That review changed after this page loaded. Check it again.", type: "error" });
+		}
+		if (action === "delete") {
+			await ctx.storage.reviews.delete(id);
+			await syncRating(ctx, asString(row.entry));
+			return renderList(ctx, stay, { message: "Review deleted.", type: "success" });
 		}
 		if (action === "unreply") {
 			await ctx.storage.reviews.put(id, { ...row, owner_reply: "", owner_reply_at: "", rev: crypto.randomUUID() });

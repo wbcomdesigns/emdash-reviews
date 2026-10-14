@@ -171,6 +171,24 @@ describe("moderation and rating", () => {
 		expect(await rating()).toEqual([0, 0]);
 	});
 
+	it("deletes a published review for good and updates the rating", async () => {
+		const { rt, call, write, decide, live, reviewId } = await open();
+		await write(ana, { stars: 5 });
+		await write(ben, { stars: 1 });
+		await decide("approve", "ana");
+		await decide("approve", "ben");
+		// Click the Delete button the review screen renders, not a hand-built value.
+		const benRow = await rt.inspect.storage.get<{ rev: string }>("reviews", reviewId("ben"));
+		const shown = (await call("admin", { type: "block_action", action_id: "decide", value: `ask_delete|${benRow!.rev}|${reviewId("ben")}|published|1|` })) as { blocks: Array<{ type: string; elements?: Array<{ label?: string; value?: string }> }> };
+		const button = shown.blocks.flatMap((block) => block.elements ?? []).find((element) => element.label === "Delete");
+		expect(button?.value).toContain(reviewId("ben"));
+		const done = await call("admin", { type: "block_action", action_id: "decide", value: button!.value });
+		expect(done).toMatchObject({ toast: { message: "Review deleted.", type: "success" } });
+		expect(await rt.inspect.storage.get("reviews", reviewId("ben"))).toBeFalsy();
+		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { average: number; count: number };
+		expect([got.average, got.count]).toEqual([5, 1]);
+	});
+
 	it("refuses to approve a review rewritten after the page loaded, and a second click", async () => {
 		const { rt, call, write, reviewId } = await open();
 		await write(ana, { body: "Polite first draft." });

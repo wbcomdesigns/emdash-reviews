@@ -4,6 +4,14 @@ Versions match `package.json`, the git tag and the registry release. Newest firs
 
 ## [0.1.4]
 
+- Fix: signed-in members can review. On "Signed-in members only" guests see a sign-in link, and members write as their account.
+- Fix: Delete on a published review removes it for good and updates the rating. Delete in a row's menu opens the review so it can ask first.
+- Fix: Approve, Reject and Delete on the opened review work (they sent no review before).
+- Fix: tags typed in a review are stored as plain text.
+- Fix: the waiting-review email is off until you add an address; switching it on without one says so.
+- Fix: rating stars show as outlines until you pick one.
+- Fix: even spacing in review cards and the owner reply, whatever the theme sets for quotes and headings.
+- Fix: plugin text stays readable when a visitor picks the site's light mode on a device set to dark.
 - Improve: Settings uses tabs (Where, Approval, Who can review, Email), one Save each.
 - Improve: Guest email only shows when Anyone can review.
 - Improve: Waiting and Published open with stats. Long text is clipped; Read shows the full review.

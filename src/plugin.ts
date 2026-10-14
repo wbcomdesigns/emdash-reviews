@@ -162,7 +162,7 @@ function publicItem(row: Record<string, unknown>) {
 }
 
 async function notifyWaiting(ctx: PluginContext): Promise<void> {
-	if ((await ctx.settings.get<boolean>("notify")) === false) return;
+	if ((await ctx.settings.get<boolean>("notify")) !== true) return;
 	if (!(await waitingCount(ctx))) return;
 	if (!ctx.email) return;
 	const to = asString(await ctx.settings.get<string>("notify_to"));
