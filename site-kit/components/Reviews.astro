@@ -39,9 +39,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 	</div>
 
 	<div data-wbr-list></div>
-	<div>
-		<button class="wb-btn wb-btn--quiet" type="button" data-wbr-more hidden>{S.showMore}</button>
-	</div>
+	<button class="wb-btn wb-btn--quiet wbr-more" type="button" data-wbr-more hidden>{S.showMore}</button>
 
 	<p class="wb-empty" data-wbr-signin hidden>
 		<strong>{S.signInWrite}</strong>{" "}
@@ -57,7 +55,8 @@ const zone = (await getSiteSettings())?.timezone || "";
 						<>
 							<input type="radio" name="stars" id={`${uid}-s${n}`} value={n} required />
 							<label for={`${uid}-s${n}`}>
-								<span aria-hidden="true">★</span>
+								<span class="wbr-off" aria-hidden="true">☆</span>
+								<span class="wbr-on" aria-hidden="true">★</span>
 								<span class="wb-sr">{S.star(n)}</span>
 							</label>
 						</>
@@ -74,9 +73,9 @@ const zone = (await getSiteSettings())?.timezone || "";
 			<input class="wb-input" id={`${uid}-email`} name="email" type="email" maxlength="200" autocomplete="email" />
 			<p class="wb-muted">{S.emailHelp}</p>
 		</div>
-		<div class="wb-field" aria-hidden="true">
-			<label class="wb-sr" for={`${uid}-website`}>Website</label>
-			<input class="wb-sr" id={`${uid}-website`} name="website" tabindex="-1" autocomplete="off" />
+		<div class="wb-sr" aria-hidden="true">
+			<label for={`${uid}-website`}>Website</label>
+			<input id={`${uid}-website`} name="website" tabindex="-1" autocomplete="off" />
 		</div>
 		<div class="wb-field">
 			<label class="wb-label" for={`${uid}-title`}>{S.headline} <span class="wb-muted">{S.optional}</span></label>
@@ -169,7 +168,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const html = items
 			.map(
 				(item) =>
-					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}<p>${esc(item.body || "")}</p>${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
+					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}${item.body ? `<p>${esc(item.body)}</p>` : ""}${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
 			)
 			.join("");
 		if (replace) list.innerHTML = `<ul class="wb-list">${html}</ul>`;
@@ -197,15 +196,19 @@ const zone = (await getSiteSettings())?.timezone || "";
 			return;
 		}
 		const anyone = health.who !== "members";
+		// Pages are cached the same for everyone, so ask a member route: a 401 means a guest.
+		const signedIn = Boolean((await api("reviews", "mine")).ok);
+		const canWrite = signedIn || anyone;
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const signInBox = root.querySelector<HTMLElement>("[data-wbr-signin]");
 		const signInLink = signInBox?.querySelector("a");
 		if (signInLink) signInLink.href = signInUrl();
-		if (form) form.hidden = !anyone;
-		if (signInBox) signInBox.hidden = anyone;
-		if (guestBox) guestBox.hidden = !anyone;
-		if (emailBox) emailBox.hidden = !anyone || health.askEmail !== true;
-		if (help) help.textContent = anyone ? S.bodyHelp : S.bodyHelpMembers;
+		if (form) form.hidden = !canWrite;
+		if (signInBox) signInBox.hidden = canWrite;
+		// A signed-in member writes as their account: no name or email boxes.
+		if (guestBox) guestBox.hidden = signedIn || !anyone;
+		if (emailBox) emailBox.hidden = signedIn || !anyone || health.askEmail !== true;
+		if (help) help.textContent = anyone || signedIn ? S.bodyHelp : S.bodyHelpMembers;
 
 		const load = async (nextPage = 1, append = false) => {
 			const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}&page=${nextPage}&sort=${encodeURIComponent(sort?.value || "newest")}`;
@@ -259,7 +262,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 			};
 			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
 			button?.setAttribute("aria-busy", "true");
-			const result = (await api("reviews", anyone ? "write_guest" : "write", payload)) as Result;
+			const result = (await api("reviews", signedIn ? "write" : "write_guest", payload)) as Result;
 			button?.removeAttribute("aria-busy");
 			tell(status, result, result.status === "published" ? S.thanksLive : S.thanksPending);
 			if (result.ok) {

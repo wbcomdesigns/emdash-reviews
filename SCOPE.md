@@ -194,9 +194,10 @@ Base: `/_emdash/api/plugins/<id>/<name>`. On a registry install `<id>` is `r_nt2
 
 | Page | What it shows |
 | --- | --- |
-| `/waiting` | Count, waiting table with Approve / Reject, full text, guest marker, pending changes labelled. Next, Previous, find by text |
-| `/published` | Published table with Reply and Remove, the reply form, find-and-delete by guest email. Next, Previous, find by text |
-| `/settings` | Every setting, one line under each saying what it does |
+| `/waiting` | Stats (waiting, published this week, average), clipped table, Read opens full text with confirm. Approve / Reject. Next, Previous, find by text |
+| `/published` | Same table with Reply and Delete. Delete-by-email in an accordion at the bottom. Next, Previous, find by text |
+| `/settings` | Tabs: Where, Approval, Who can review, Email. One Save per tab. Guest email only when Anyone is chosen |
+| Dashboard card | Waiting count and a link. Not the Waiting page |
 
 ## Site kit
 

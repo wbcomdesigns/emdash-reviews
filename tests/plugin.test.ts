@@ -112,6 +112,18 @@ describe("writing a review", () => {
 		expect(saved.stars).toBe(5);
 		const waiting = await rt.admin.loadPage("/waiting");
 		expect(JSON.stringify(waiting.blocks)).toContain("\u200b");
+		const clipped = JSON.stringify(waiting.blocks);
+		expect(clipped).toContain("...");
+		expect(clipped).not.toContain("x".repeat(200));
+		const stored = (await rt.inspect.storage.list("reviews"))[0];
+		const row = stored.data as { rev: string };
+		const read = (await call("admin", {
+			type: "block_action",
+			action_id: "decide",
+			value: `read|${row.rev}|${stored.id}`,
+		})) as { blocks: Array<Record<string, unknown>> };
+		expect(JSON.stringify(read.blocks)).toContain("Review to decide");
+		expect(JSON.stringify(read.blocks)).toContain("x".repeat(80));
 	});
 
 	it("publishes at once when moderation is off", async () => {
@@ -157,6 +169,24 @@ describe("moderation and rating", () => {
 		expect(await rating()).toEqual([1, 1]);
 		await call("mine", {}, { method: "DELETE", user: ben });
 		expect(await rating()).toEqual([0, 0]);
+	});
+
+	it("deletes a published review for good and updates the rating", async () => {
+		const { rt, call, write, decide, live, reviewId } = await open();
+		await write(ana, { stars: 5 });
+		await write(ben, { stars: 1 });
+		await decide("approve", "ana");
+		await decide("approve", "ben");
+		// Click the Delete button the review screen renders, not a hand-built value.
+		const benRow = await rt.inspect.storage.get<{ rev: string }>("reviews", reviewId("ben"));
+		const shown = (await call("admin", { type: "block_action", action_id: "decide", value: `ask_delete|${benRow!.rev}|${reviewId("ben")}|published|1|` })) as { blocks: Array<{ type: string; elements?: Array<{ label?: string; value?: string }> }> };
+		const button = shown.blocks.flatMap((block) => block.elements ?? []).find((element) => element.label === "Delete");
+		expect(button?.value).toContain(reviewId("ben"));
+		const done = await call("admin", { type: "block_action", action_id: "decide", value: button!.value });
+		expect(done).toMatchObject({ toast: { message: "Review deleted.", type: "success" } });
+		expect(await rt.inspect.storage.get("reviews", reviewId("ben"))).toBeFalsy();
+		const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { average: number; count: number };
+		expect([got.average, got.count]).toEqual([5, 1]);
 	});
 
 	it("refuses to approve a review rewritten after the page loaded, and a second click", async () => {
@@ -224,7 +254,18 @@ describe("settings", () => {
 			fields: [{ slug: "title", label: "Title", type: "string", required: true }],
 		} as never);
 		const page = await rt.admin.loadPage("/settings");
-		const form = page.blocks.find((block) => block.type === "form" && (block as { block_id?: string }).block_id === "settings_collections") as {
+		const forms: Array<Record<string, unknown>> = [];
+		const walk = (node: unknown) => {
+			if (!node || typeof node !== "object") return;
+			const rec = node as Record<string, unknown>;
+			if (rec.type === "form") forms.push(rec);
+			for (const value of Object.values(rec)) {
+				if (Array.isArray(value)) value.forEach(walk);
+				else walk(value);
+			}
+		};
+		walk(page.blocks);
+		const form = forms.find((block) => block.block_id === "settings_collections") as {
 			fields?: Array<{ options?: Array<{ label: string; value: string }>; initial_value?: string[] }>;
 		};
 		const options = form?.fields?.[0]?.options ?? [];
@@ -311,6 +352,20 @@ describe("settings", () => {
 		expect(json).toMatch(/"action_id":"ask_guest_email"[^}]*"initial_value":true/);
 		expect(json).toMatch(/"action_id":"notify"[^}]*"initial_value":false/);
 	});
+
+	it("puts settings in tabs and hides guest email unless anyone can review", async () => {
+		const { rt } = await open();
+		const page = await rt.admin.loadPage("/settings");
+		const json = JSON.stringify(page.blocks);
+		expect(json).toContain('"type":"tab"');
+		expect(json).toContain("Where");
+		expect(json).toContain("Approval");
+		expect(json).toContain("Who can review");
+		expect(json).toContain("Email");
+		expect(json).not.toContain("Each group saves on its own.");
+		expect(json).toContain('"field":"who"');
+		expect(json).toContain('"eq":"anyone"');
+	});
 });
 
 describe("admin lists", () => {
@@ -321,7 +376,7 @@ describe("admin lists", () => {
 		}
 		const first = await call("admin", { type: "page_load", page: "/waiting" });
 		expect(JSON.stringify(first)).toContain("Page 1 of 3");
-		expect(JSON.stringify(first)).toContain("60 reviews");
+		expect(JSON.stringify(first)).toContain('"value":"60"');
 		const third = (await call("admin", { type: "block_action", action_id: "page", value: "waiting|3|" })) as {
 			blocks: Array<Record<string, unknown>>;
 		};
@@ -357,7 +412,13 @@ describe("admin lists", () => {
 		});
 		const waiting = await rt.admin.loadPage("/waiting");
 		expect(JSON.stringify(waiting.blocks)).toContain("Guest");
+		expect(JSON.stringify(waiting.blocks)).toContain("Published this week");
+		expect(JSON.stringify(waiting.blocks)).toContain("Read");
 		await call("admin", { type: "block_action", action_id: "decide", value: `approve|g1|posts:${live}:v-guest` });
+		const published = await rt.admin.loadPage("/published");
+		expect(JSON.stringify(published.blocks)).toContain("accordion");
+		expect(JSON.stringify(published.blocks)).toContain("Delete a guest");
+		expect(JSON.stringify(published.blocks)).toContain("Delete");
 		expect(
 			await call("admin", {
 				type: "form_submit",
@@ -458,6 +519,19 @@ describe("guest write", () => {
 		expect(JSON.stringify(all[0].data)).not.toContain("sam@");
 	});
 
+	it("stores typed HTML tags as plain text", async () => {
+		const { call, live, rt } = await open();
+		await call(
+			"write_guest",
+			{ collection: "posts", id: live, stars: 4, name: "Marco <i>Tester</i>", title: "<b>Clear</b> and useful", body: "Short and <b>bold</b> <script>x</script>test.", visitor: "tags" },
+			{ method: "POST" },
+		);
+		const row = (await rt.inspect.storage.list("reviews"))[0].data as Record<string, string>;
+		expect(row.author).toBe("Marco Tester");
+		expect(row.title).toBe("Clear and useful");
+		expect(row.body).toBe("Short and bold xtest.");
+	});
+
 	it("replaces the same visitor, refuses members-only, and ignores a filled honeypot", async () => {
 		const { call, live, rt } = await open();
 		const guest = { method: "POST" as const };
@@ -552,5 +626,8 @@ describe("dashboard card", () => {
 		expect(json).toContain("Waiting");
 		expect(json).toContain("/waiting");
 		expect(json).not.toContain("save_collections");
+		expect(json).not.toContain('"type":"table"');
+		expect(json).not.toContain("Find");
+		expect(json).not.toContain("Each group saves");
 	});
 });

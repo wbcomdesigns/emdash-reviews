@@ -5,7 +5,8 @@ PORT="$(node -e 'const p=require(process.argv[1]+"/package.json");console.log((p
 LAB="${PLUGIN_LAB:-$(cd "$PLUGIN/.." && pwd)/emdash-lab-$SLUG}"
 BASE="http://localhost:$PORT"
 # The lab's SQLite file, read from its own config (the starter template has moved it before).
-LAB_DB="$(sed -n 's/.*url:[[:space:]]*"file:\([^"]*\)".*/\1/p' "$LAB"/astro.config.* 2>/dev/null | head -n 1)"
+# "|| true": on the very first run the lab and its config do not exist yet.
+LAB_DB="$(sed -n 's/.*url:[[:space:]]*"file:\([^"]*\)".*/\1/p' "$LAB"/astro.config.* 2>/dev/null | head -n 1 || true)"
 LAB_DB="$LAB/${LAB_DB#./}"
 [[ "$LAB_DB" == "$LAB/" ]] && LAB_DB="$LAB/data.db"
 export PLUGIN_ROOT="$PLUGIN" PLUGIN_LAB="$LAB"

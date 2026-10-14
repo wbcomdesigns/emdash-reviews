@@ -23,10 +23,11 @@
 			"banner": { "file": "./images/banner.png" },
 			// Dark counterpart lives at ./images/banner-dark.png. The schema accepts one banner.
 			"screenshots": [
-				{ "file": "./images/screenshot-1-reviews.png" },
-				{ "file": "./images/screenshot-2-published.png" },
+				{ "file": "./images/screenshot-1-reviews-on-post.png" },
+				{ "file": "./images/screenshot-2-write.png" },
 				{ "file": "./images/screenshot-3-waiting.png" },
-				{ "file": "./images/screenshot-4-settings.png" }
+				{ "file": "./images/screenshot-4-published.png" },
+				{ "file": "./images/screenshot-5-settings.png" }
 			]
 		}
 	},
