@@ -33,9 +33,17 @@ From the site root:
 ```bash
 K=path/to/emdash-reviews/site-kit
 mkdir -p src/lib src/styles src/components
-cp $K/lib/wbcom-kit.ts $K/lib/reviews-strings.ts src/lib/
-cp $K/styles/wbcom-base.css $K/styles/reviews.css src/styles/
+cp $K/lib/reviews-strings.ts src/lib/
+cp $K/styles/reviews.css src/styles/
 cp $K/components/Reviews.astro $K/components/RatingBadge.astro src/components/
+
+# The two shared files are used by every Wbcom plugin. Line 1 carries a number
+# (wbcom-shared: N). Copy only when the site has no copy yet or an older one,
+# so another plugin's newer copy is never replaced.
+shared() { v="$(sed -n '1s/.*wbcom-shared: *\([0-9]*\).*/\1/p' "$1" 2>/dev/null)"; echo "${v:-0}"; }
+newer() { [ ! -f "$2" ] || [ "$(shared "$1")" -ge "$(shared "$2")" ]; }
+newer "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts && cp "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts
+newer "$K/styles/wbcom-base.css" src/styles/wbcom-base.css && cp "$K/styles/wbcom-base.css" src/styles/wbcom-base.css
 ```
 
 Do not copy `site-kit/lab/`. That page is for the plugin lab only.
