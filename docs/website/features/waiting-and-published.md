@@ -27,7 +27,7 @@ Waiting holds new reviews and changes to live reviews. When **Nothing waiting** 
 
 In the **Decide** menu:
 
-- **Read:** opens the full review. **Close** returns to the list.above the table, with the full text.
+- **Read:** opens the review above the table, with the full text. **Close** returns to the list.
 - **Approve:** publishes the review. You see "Review published."
 - **Reject:** takes a new review off the queue. It never shows. You see "Review taken off the site."
 

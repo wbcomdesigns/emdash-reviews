@@ -15,7 +15,9 @@
       "pages": [
         { "slug": "introduction", "title": "Introduction" },
         { "slug": "install", "title": "Install WB Reviews" },
-        { "slug": "first-review", "title": "Your first review" }
+        { "slug": "first-review", "title": "Your first review" },
+        { "slug": "use-cases", "title": "Use cases" },
+        { "slug": "posts-and-pages", "title": "Posts and pages" }
       ]
     },
     {
