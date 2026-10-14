@@ -1,3 +1,9 @@
+## 0.1.4
+
+- Improve: Settings uses tabs, one Save each. Guest email only when Anyone can review.
+- Improve: Waiting and Published open with stats. Long text is clipped; Read shows the full review.
+- Improve: Delete-by-email is in an accordion. The dashboard card is a count and a link.
+
 ## 0.1.3
 
 - Fix: stars-only ratings no longer keep the "Be the first" empty box.

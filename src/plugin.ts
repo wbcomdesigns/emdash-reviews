@@ -402,7 +402,7 @@ const plugin: SandboxedPlugin = {
 			},
 		},
 		admin: {
-			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx),
+			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx, routeCtx),
 		},
 	},
 };

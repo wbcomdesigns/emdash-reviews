@@ -2,7 +2,13 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-14, 0.1.3. 35 tests (guest cap, NEED_STARS, Waiting wrap). Kit: stars-only empty copy, members-only sign-in, no preselected stars. 0.1.2 browser walk still holds. Guest first, then admin via dev-bypass. Viewport 1440x900 light. Walked in the browser: G-1 form and summary, G-7 guest submit (thanks, waits), G-12 pages block hidden, G-13 dates "14 Oct 2026", G-14 sort from two reviews, email field `display:none` when off, Show more hidden on one page. Admin Published, Waiting and Settings: no welcome dialog. Kit-fetch tests cover the registry id `r_nt2pnhev44oaara3` and the slug fallback. Route-level: `prove-lab.sh` and 33 unit tests. Not walked: P-5 full keyboard, RTL, a live registry install (local lab uses the slug; registry id 404s here as expected).
+**Last walk:** 2026-10-14, 0.1.4 admin on lab :4331 (1440 light/dark, 390 light): Settings tabs Where / Approval / Who can review / Email, one Save, no "Each group saves on its own." Waiting and Published open with stats. Table clips long text. Published has delete-by-email accordion. Dashboard card is stats + link. 0.1.3 registry proof on :4340 still holds for visitor flows.
+
+Walked in the browser on the registry site: G-1 form and summary, G-7 guest submit (`write_guest` only, pending thanks), G-4 members-only hides the form and shows the sign-in line, G-13 dates, G-14 sortbar, badge. Kit requests hit `r_nt2pnhev44oaara3` only (slug 404).
+
+Route-level on :4340: G-2 write/mine 401, G-3 list published only, G-6 `aggregateRating`, G-9 honeypot SPAM, G-10/G-11 `MEMBERS_ONLY` and `NEED_EMAIL`, A-1 Waiting/Published/Settings load, A-2 approve (`Review published.`, pending 3 to 2, Registry Guest live), A-8 reply saved and shown. `prove-lab.sh` on :4331 still passes. 35 unit tests (guest cap, NEED_STARS, Waiting wrap).
+
+Not walked: P-5 full keyboard, RTL, A-11 60-row paging. #4/#19/#39 remain open (0.2.0 My reviews, trusted block, admin-standard rebuild).
 
 When you walk it, replace that line with the date, the version, and three lists: cases walked in the browser, cases checked at route level only, cases not walked. Do not claim a case you did not run.
 
@@ -55,7 +61,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 | ID | Steps | Expected |
 | --- | --- | --- |
-| A-1 | Open Waiting and Published with rows | Each page loads. Full text. Find, count, Next and Previous when there are enough rows |
+| A-1 | Open Waiting and Published with rows | Each page loads. Stats at the top. Table clips long text. Read shows the full review. Find, Next and Previous when there are enough rows |
 | A-2 | Approve a review | It shows on the page. Rating and count change |
 | A-3 | Remove a published review | It leaves the page. Rating changes |
 | A-4 | Load the page, member rewrites, click Approve | Refused: changed after this page loaded |

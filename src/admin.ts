@@ -6,14 +6,15 @@ import { asBoolean, asNumber, asRecord, asString, asStringArray, rows } from "./
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
 type Kind = "waiting" | "published";
-type View = { kind: Kind; page: number; q: string; replyId?: string };
+type View = { kind: Kind; page: number; q: string; replyId?: string; detailId?: string };
+type RouteUi = { ui?: { surface?: string } };
 
 const PAGE_SIZE = 25;
 // ponytail: find and paging scan this many rows per status. Raise or index a search field if a site passes it.
 const SCAN = 500;
 const REPLY_MAX = 1000;
-
-const lines = (items: string[]) => items.map((text) => ({ type: "context", text }));
+const CLIP = 80;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // A member can rewrite their own review. The stamp ties an admin's click to the exact
 // version they were shown, so a rewrite cannot ride an approval.
@@ -55,6 +56,10 @@ function viewFrom(input: Record<string, unknown>, fallback: Kind): View {
 	return { kind: fallback, page: Math.max(1, page), q };
 }
 
+function isDashboard(input: Record<string, unknown>, routeCtx?: RouteUi): boolean {
+	return routeCtx?.ui?.surface === "dashboard-widget" || asString(input.widget) === "waiting";
+}
+
 async function loadSettings(ctx: PluginContext) {
 	const [site, rawOpen, moderate, who, askEmail, notify, notifyTo] = await Promise.all([
 		siteCollections(ctx),
@@ -82,11 +87,30 @@ function wrapLong(text: string): string {
 	return text.replace(/\S{32,}/g, (word) => word.match(/.{1,32}/g)?.join("\u200b") ?? word);
 }
 
+function clip(text: string): string {
+	const clean = text.replace(/\s+/g, " ").trim();
+	if (!clean) return "";
+	const cut = clean.length > CLIP ? `${clean.slice(0, CLIP).trimEnd()}...` : clean;
+	return wrapLong(cut);
+}
+
+function reviewText(row: Record<string, unknown>): { title: string; body: string; stars: unknown; full: string } {
+	const title = row.pending_change === true ? asString(row.pending_title) : asString(row.title);
+	const body = row.pending_change === true ? asString(row.pending_body) : asString(row.body);
+	const stars = row.pending_change === true ? (asNumber(row.pending_stars) ?? row.stars) : row.stars;
+	const full = [title, body].filter(Boolean).join(": ") || "Stars only";
+	return { title, body, stars, full };
+}
+
 function noteFor(row: Record<string, unknown>): string {
 	const bits: string[] = [];
 	if (row.guest === true) bits.push("Guest");
 	if (row.pending_change === true) bits.push("Change waiting");
 	return bits.join(" · ");
+}
+
+function confirm(title: string, text: string, ok: string): Record<string, unknown> {
+	return { title, text, confirm: ok, deny: "Cancel" };
 }
 
 async function listed(ctx: PluginContext, view: View) {
@@ -122,33 +146,41 @@ async function listed(ctx: PluginContext, view: View) {
 	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
 	const page = Math.min(Math.max(view.page, 1), pages);
 	const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-	return { slice, total, page, pages, view: { ...view, page } };
+	return { slice, total, page, pages, published, view: { ...view, page } };
 }
 
-async function tableRows(
-	ctx: PluginContext,
-	items: Array<Record<string, unknown>>,
-	view: View,
-	actions: Array<[string, string]>,
-) {
+function listStats(waiting: number, published: Array<Record<string, unknown>>) {
+	const since = Date.now() - WEEK_MS;
+	const week = published.filter((row) => new Date(asString(row.createdAt)).getTime() >= since).length;
+	const stars = published.map((row) => asNumber(row.stars) ?? 0).filter((n) => n > 0);
+	const average = stars.length ? Math.round((stars.reduce((sum, n) => sum + n, 0) / stars.length) * 10) / 10 : 0;
+	return {
+		type: "stats",
+		items: [
+			{ label: "Waiting", value: String(waiting) },
+			{ label: "Published this week", value: String(week) },
+			{ label: "Average rating", value: average ? average.toFixed(1) : "-" },
+		],
+	};
+}
+
+async function tableRows(ctx: PluginContext, items: Array<Record<string, unknown>>, view: View, actions: Array<[string, string]>) {
 	const refs = await entryRefs(ctx, items);
 	return items.map((row) => {
-		const title = row.pending_change === true ? asString(row.pending_title) : asString(row.title);
-		const body = row.pending_change === true ? asString(row.pending_body) : asString(row.body);
-		const stars = row.pending_change === true ? (asNumber(row.pending_stars) ?? row.stars) : row.stars;
+		const text = reviewText(row);
 		return {
-		review: wrapLong([title, body].filter(Boolean).join(": ") || "Stars only"),
-		on: refs.get(asString(row.entry))?.title ?? "Removed page",
-		stars: stars ? `${stars} of 5` : "-",
-		author: asString(row.author),
-		note: noteFor(row) || "-",
-		action: {
-			type: "menu",
-			action_id: "decide",
-			label: "Decide",
-			items: actions.map(([label, action]) => ({ label, value: stamped(action, row, view) })),
-		},
-	};
+			review: clip(text.full) || "Stars only",
+			on: refs.get(asString(row.entry))?.title ?? "Removed page",
+			stars: text.stars ? `${text.stars} of 5` : "-",
+			author: asString(row.author),
+			note: noteFor(row) || "-",
+			action: {
+				type: "menu",
+				action_id: "decide",
+				label: "Decide",
+				items: actions.map(([label, action]) => ({ label, value: stamped(action, row, view) })),
+			},
+		};
 	});
 }
 
@@ -174,39 +206,118 @@ function pager(view: View, page: number, pages: number, total: number) {
 		page < pages ? button("Next", page + 1) : null,
 	].filter(Boolean);
 	return [
-		{ type: "context", text: `${total} ${total === 1 ? "review" : "reviews"}. Page ${page} of ${pages}.` },
+		{
+			type: "stats",
+			items: [{ label: "In this list", value: String(total), description: `Page ${page} of ${pages}` }],
+		},
 		elements.length ? { type: "actions", elements } : null,
 	].filter(Boolean) as Array<Record<string, unknown>>;
 }
 
+async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Record<string, unknown>>> {
+	if (!view.detailId && !view.replyId) return [];
+	const id = view.detailId || view.replyId || "";
+	const row = asRecord(await ctx.storage.reviews.get(id));
+	if (!row.entry) return [{ type: "banner", title: "That review no longer exists.", variant: "alert" }];
+	const text = reviewText(row);
+	const refs = await entryRefs(ctx, [row]);
+	const pageTitle = refs.get(asString(row.entry))?.title || "Removed page";
+	const waiting = view.kind === "waiting";
+	const blocks: Array<Record<string, unknown>> = [
+		{ type: "header", text: waiting ? "Review to decide" : view.replyId ? "Reply" : "Review" },
+		{
+			type: "fields",
+			fields: [
+				{ label: "Author", value: asString(row.author) || "-" },
+				{ label: "Stars", value: text.stars ? `${text.stars} of 5` : "-" },
+				{ label: "Page", value: pageTitle },
+				{ label: "Note", value: noteFor(row) || "-" },
+			],
+		},
+		{ type: "section", text: wrapLong(text.full) },
+	];
+	if (asString(row.owner_reply)) {
+		blocks.push({ type: "section", text: `Owner reply: ${wrapLong(asString(row.owner_reply))}` });
+	}
+	if (waiting) {
+		blocks.push({
+			type: "actions",
+			elements: [
+				{
+					type: "button",
+					label: "Approve",
+					action_id: "decide",
+					style: "primary",
+					value: stamped("approve", row, view),
+					confirm: confirm("Publish this review?", text.full.slice(0, 200), "Publish"),
+				},
+				{
+					type: "button",
+					label: "Reject",
+					action_id: "decide",
+					style: "danger",
+					value: stamped("reject", row, view),
+					confirm: confirm("Take this review off the queue?", text.full.slice(0, 200), "Reject"),
+				},
+			],
+		});
+	} else if (view.replyId) {
+		blocks.push({
+			type: "form",
+			block_id: "reply",
+			fields: [
+				{
+					type: "text_input",
+					action_id: "body",
+					label: `Reply to ${asString(row.author) || "this review"}`,
+					multiline: true,
+					initial_value: asString(row.owner_reply),
+				},
+			],
+			submit: { label: "Save reply", action_id: `save_reply|${id}` },
+		});
+	} else {
+		blocks.push({
+			type: "actions",
+			elements: [
+				{
+					type: "button",
+					label: "Delete",
+					action_id: "decide",
+					style: "danger",
+					value: stamped("reject", row, view),
+					confirm: confirm("Delete this review?", "It leaves the site. This cannot be undone.", "Delete"),
+				},
+			],
+		});
+	}
+	return blocks;
+}
+
 export async function renderList(ctx: PluginContext, view: View, toast?: Toast): Promise<BlockResponse> {
-	const { slice, total, page, pages, view: current } = await listed(ctx, view);
+	const { slice, total, page, pages, published, view: current } = await listed(ctx, view);
 	const waiting = current.kind === "waiting";
+	const waitingTotal = await waitingCount(ctx);
 	const actions: Array<[string, string]> = waiting
 		? [
+				["Read", "read"],
 				["Approve", "approve"],
 				["Reject", "reject"],
 			]
 		: [
+				["Read", "read"],
 				["Reply", "reply"],
-				["Remove reply", "unreply"],
-				["Remove from site", "reject"],
+				["Delete", "reject"],
 			];
 	const table = await tableRows(ctx, slice, current, actions);
 	const title = waiting ? "Waiting" : "Published";
 	const empty = waiting
 		? { title: "Nothing waiting", description: "New reviews land here first." }
 		: { title: "No published reviews yet", description: "Approved reviews show here so you can reply or remove one." };
-	const replyRow = current.replyId ? asRecord(await ctx.storage.reviews.get(current.replyId)) : {};
 	return {
 		blocks: [
 			{ type: "header", text: title },
-			{
-				type: "section",
-				text: waiting
-					? "Approve reviews before they show. Ratings update as you decide."
-					: "Reply in public or take a review off the site.",
-			},
+			listStats(waitingTotal, published),
 			{
 				type: "form",
 				block_id: "find",
@@ -221,40 +332,33 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 				],
 				submit: { label: "Find", action_id: "find" },
 			},
-			!waiting
-				? {
-						type: "form",
-						block_id: "by_email",
-						fields: [
-							{
-								type: "text_input",
-								action_id: "email",
-								label: "Find a guest by email and delete their reviews",
-							},
-						],
-						submit: { label: "Delete those reviews", action_id: "delete_email" },
-					}
-				: null,
-			current.replyId
-				? {
-						type: "form",
-						block_id: "reply",
-						fields: [
-							{
-								type: "text_input",
-								action_id: "body",
-								label: `Reply to ${asString(replyRow.author) || "this review"}`,
-								multiline: true,
-								initial_value: asString(replyRow.owner_reply),
-							},
-						],
-						submit: { label: "Save reply", action_id: `save_reply|${current.replyId}` },
-					}
-				: null,
+			...(await detailBlocks(ctx, current)),
 			...pager(current, page, pages, total),
 			table.length
 				? { type: "table", page_action_id: `${current.kind}_page`, columns: COLUMNS, rows: table }
 				: { type: "empty", title: empty.title, description: current.q ? "No reviews match that search." : empty.description },
+			!waiting
+				? {
+						type: "accordion",
+						label: "Delete a guest's reviews by email",
+						default_open: false,
+						blocks: [
+							{
+								type: "form",
+								block_id: "by_email",
+								fields: [
+									{
+										type: "text_input",
+										action_id: "email",
+										label: "Guest email",
+									},
+								],
+								submit: { label: "Delete those reviews", action_id: "delete_email" },
+							},
+							{ type: "context", text: "This cannot be undone. A wrong address finds nothing." },
+						],
+					}
+				: null,
 		].filter(Boolean) as Array<Record<string, unknown>>,
 		toast,
 	};
@@ -267,7 +371,6 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 	return {
 		blocks: [
 			{ type: "header", text: "Settings" },
-			{ type: "section", text: "Each group saves on its own." },
 			noSchema
 				? {
 						type: "banner",
@@ -284,105 +387,109 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 						variant: "alert",
 					}
 				: null,
-			{ type: "header", text: "Content that can be reviewed" },
-			...lines(["Tick the kinds of page visitors can review. Names come from the site. Nothing is typed."]),
 			{
-				type: "form",
-				block_id: "settings_collections",
-				fields: [
+				type: "tab",
+				panels: [
 					{
-						type: "checkbox",
-						action_id: "collections",
-						label: "Open for reviews",
-						options: settings.site.map((item) => ({ label: item.label, value: item.slug })),
-						initial_value: settings.open,
-					},
-				],
-				submit: { label: "Save content types", action_id: "save_collections" },
-			},
-			{ type: "divider" },
-			{ type: "header", text: "Approval" },
-			...lines(["When this is on, a review waits here until you approve it. Star-only ratings follow the same rule."]),
-			{
-				type: "form",
-				block_id: "settings_moderation",
-				fields: [
-					{
-						type: "toggle",
-						action_id: "require_moderation",
-						label: "Approve reviews before they show",
-						initial_value: settings.moderate,
-					},
-				],
-				submit: { label: "Save approval", action_id: "save_moderation" },
-			},
-			{ type: "divider" },
-			{ type: "header", text: "Who can review" },
-			...lines(["Anyone is the default. A guest review always waits for approval, even when member reviews go live at once."]),
-			{
-				type: "form",
-				block_id: "settings_who",
-				fields: [
-					{
-						type: "radio",
-						action_id: "who",
-						label: "Who can leave a review",
-						options: [
-							{ label: "Anyone", value: "anyone" },
-							{ label: "Signed-in members only", value: "members" },
+						label: "Where",
+						blocks: [
+							{
+								type: "form",
+								block_id: "settings_collections",
+								fields: [
+									{
+										type: "checkbox",
+										action_id: "collections",
+										label: "Open for reviews",
+										options: settings.site.map((item) => ({ label: item.label, value: item.slug })),
+										initial_value: settings.open,
+									},
+								],
+								submit: { label: "Save", action_id: "save_collections" },
+							},
+							{ type: "context", text: "Tick the kinds of page visitors can review. Names come from the site." },
 						],
-						initial_value: settings.who,
-					},
-				],
-				submit: { label: "Save who can review", action_id: "save_who" },
-			},
-			{ type: "divider" },
-			{ type: "header", text: "Guest email" },
-			...lines(["Off by default. When on, a guest is asked for an email as well as a name. The email is never shown on the site."]),
-			{
-				type: "form",
-				block_id: "settings_guest_email",
-				fields: [
-					{
-						type: "toggle",
-						action_id: "ask_guest_email",
-						label: "Ask guests for an email",
-						initial_value: settings.askEmail,
-					},
-				],
-				submit: { label: "Save guest email", action_id: "save_guest_email" },
-			},
-			{ type: "divider" },
-			{
-				type: "banner",
-				title: "Guest protection depends on hosting",
-				description:
-					"When the site has a trusted visitor address, each guest is identified by a salted hash. When it does not, a browser cookie is used and protection is weaker.",
-				variant: "default",
-			},
-			{ type: "header", text: "Email when reviews are waiting" },
-			...lines([
-				"At most one short notice an hour. It does not include review text or a link. Needs mail set up on the site.",
-			]),
-			{
-				type: "form",
-				block_id: "settings_notify",
-				fields: [
-					{
-						type: "toggle",
-						action_id: "notify",
-						label: "Email me when reviews are waiting",
-						initial_value: settings.notify,
 					},
 					{
-						type: "text_input",
-						action_id: "notify_to",
-						label: "Send the notice to",
-						help_text: "Leave blank to use the site admin.",
-						initial_value: settings.notifyTo,
+						label: "Approval",
+						blocks: [
+							{
+								type: "form",
+								block_id: "settings_moderation",
+								fields: [
+									{
+										type: "toggle",
+										action_id: "require_moderation",
+										label: "Approve reviews before they show",
+										initial_value: settings.moderate,
+									},
+								],
+								submit: { label: "Save", action_id: "save_moderation" },
+							},
+							{ type: "context", text: "When this is on, a review waits here until you approve it. Star-only ratings follow the same rule." },
+						],
+					},
+					{
+						label: "Who can review",
+						blocks: [
+							{
+								type: "form",
+								block_id: "settings_who",
+								fields: [
+									{
+										type: "radio",
+										action_id: "who",
+										label: "Who can leave a review",
+										options: [
+											{ label: "Anyone", value: "anyone" },
+											{ label: "Signed-in members only", value: "members" },
+										],
+										initial_value: settings.who,
+									},
+									{
+										type: "toggle",
+										action_id: "ask_guest_email",
+										label: "Ask guests for an email",
+										initial_value: settings.askEmail,
+										condition: { field: "who", eq: "anyone" },
+									},
+								],
+								submit: { label: "Save", action_id: "save_who" },
+							},
+							{ type: "context", text: "Anyone is the default. A guest review always waits for approval." },
+							{
+								type: "context",
+								text: "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker.",
+							},
+						],
+					},
+					{
+						label: "Email",
+						blocks: [
+							{
+								type: "form",
+								block_id: "settings_notify",
+								fields: [
+									{
+										type: "toggle",
+										action_id: "notify",
+										label: "Email me when reviews are waiting",
+										initial_value: settings.notify,
+									},
+									{
+										type: "text_input",
+										action_id: "notify_to",
+										label: "Send the notice to",
+										help_text: "Leave blank to use the site admin.",
+										initial_value: settings.notifyTo,
+									},
+								],
+								submit: { label: "Save", action_id: "save_notify" },
+							},
+							{ type: "context", text: "At most one short notice an hour. It has no review text and no link." },
+						],
 					},
 				],
-				submit: { label: "Save email notice", action_id: "save_notify" },
 			},
 		].filter(Boolean) as Array<Record<string, unknown>>,
 		toast,
@@ -394,10 +501,10 @@ function show(ctx: PluginContext, page: string, view: View, toast?: Toast): Prom
 	return renderList(ctx, view, toast);
 }
 
-export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<BlockResponse> {
+export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?: RouteUi): Promise<BlockResponse> {
 	const raw = asRecord(input);
 	const type = asString(raw.type);
-	if (asString(raw.widget) === "waiting" && type !== "form_submit" && type !== "block_action") {
+	if (isDashboard(raw, routeCtx) && type !== "form_submit" && type !== "block_action") {
 		return renderDashboard(ctx);
 	}
 	const page = pageOf(raw);
@@ -464,6 +571,9 @@ export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<B
 		if (action === "save_who") {
 			const who = asString(values.who) === "members" ? "members" : "anyone";
 			await ctx.settings.set("who", who);
+			if ("ask_guest_email" in values) {
+				await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
+			}
 			return renderSettings(ctx, { message: "Who can review saved.", type: "success" });
 		}
 		if (action === "save_guest_email") {
@@ -489,7 +599,8 @@ export async function handleAdmin(input: unknown, ctx: PluginContext): Promise<B
 	if (type === "block_action" && asString(raw.action_id) === "decide") {
 		const { action, stamp, id, kind: fromStamp, page: keep, q } = parseStamped(raw.value);
 		const stay: View = { kind: fromStamp, page: keep, q };
-		if (action === "reply") return renderList(ctx, { ...stay, kind: "published", replyId: id });
+		if (action === "read") return renderList(ctx, { ...stay, detailId: id });
+		if (action === "reply") return renderList(ctx, { ...stay, kind: "published", replyId: id, detailId: id });
 		const row = asRecord(await ctx.storage.reviews.get(id));
 		if (!row.entry) return renderList(ctx, stay, { message: "That review no longer exists.", type: "error" });
 		if (asString(row.rev) !== stamp) {
@@ -551,10 +662,7 @@ export async function renderDashboard(ctx: PluginContext): Promise<BlockResponse
 	const waiting = await waitingCount(ctx);
 	return {
 		blocks: [
-			{ type: "header", text: "Reviews waiting" },
-			waiting
-				? { type: "stats", items: [{ label: "Waiting", value: String(waiting) }] }
-				: { type: "section", text: "Nothing is waiting." },
+			{ type: "stats", items: [{ label: "Waiting", value: String(waiting) }] },
 			{
 				type: "actions",
 				elements: [{ type: "link", label: "Open Waiting", target: { kind: "plugin-page", path: "/waiting" } }],

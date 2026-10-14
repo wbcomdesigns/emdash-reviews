@@ -2,6 +2,14 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.1.4]
+
+- Improve: Settings uses tabs (Where, Approval, Who can review, Email), one Save each.
+- Improve: Guest email only shows when Anyone can review.
+- Improve: Waiting and Published open with stats. Long text is clipped; Read shows the full review.
+- Improve: Delete-by-email sits in an accordion on Published.
+- Improve: The dashboard card is the waiting count and a link.
+
 ## [0.1.3]
 
 - Fix: stars-only ratings no longer keep the "Be the first to review this" box.
