@@ -36,7 +36,7 @@ Yes, once per review, from **Published**. Your reply shows under the review as *
 
 ## Can reviewers edit or delete their own review?
 
-Not yet. A "My reviews" page for members is planned for a later version. You can remove any review from **Published**, and all of a guest's reviews by email.
+A guest cannot. A signed-in member can delete all of their reviews at `/account/reviews/` (**My reviews**). **Delete all my reviews** asks for a second click. You can still remove any review from **Published**, and all of a guest's reviews by email.
 
 ## Do I get an email when a review arrives?
 

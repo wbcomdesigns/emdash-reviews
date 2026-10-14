@@ -56,7 +56,7 @@ export const badge = {
 export const mine = {
 	heading: "My reviews",
 	loading: "Loading your reviews…",
-	emptyTitle: "You have not written a review yet.",
+	emptyTitle: "You have not reviewed anything yet.",
 	emptyHint: "Reviews you write show here with their status.",
 	erase: "Delete all my reviews",
 	eraseAgain: "Click again to delete them for good",

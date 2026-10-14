@@ -147,7 +147,7 @@ describe("writing a review", () => {
 
 describe("moderation and rating", () => {
 	it("updates the rating on approve, on remove, and when the member rewrites or erases", async () => {
-		const { call, write, decide, live } = await open();
+		const { rt, call, write, decide, live, reviewId } = await open();
 		const rating = async () => {
 			const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { average: number; count: number };
 			return [got.average, got.count];
@@ -166,6 +166,8 @@ describe("moderation and rating", () => {
 		expect(await rating()).toEqual([3, 2]);
 
 		await call("mine", {}, { method: "DELETE", user: ana });
+		expect(await rt.inspect.storage.get("reviews", reviewId("ana"))).toBeFalsy();
+		expect(await rt.inspect.storage.get("reviews", reviewId("ben"))).toBeTruthy();
 		expect(await rating()).toEqual([1, 1]);
 		await call("mine", {}, { method: "DELETE", user: ben });
 		expect(await rating()).toEqual([0, 0]);

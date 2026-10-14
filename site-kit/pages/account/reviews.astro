@@ -1,0 +1,15 @@
+---
+/**
+ * My reviews. Copy this file to src/pages/account/reviews.astro.
+ * Change the layout import if your site uses a different layout.
+ * Link to /account/reviews/ from the site menu as My reviews.
+ */
+import Base from "../../layouts/Base.astro";
+import MyReviews from "../../components/MyReviews.astro";
+---
+
+<Base title="My reviews" description="Reviews you have written on this site.">
+	<div style="max-width: 40rem; margin-inline: auto; padding: 2rem 1rem;">
+		<MyReviews />
+	</div>
+</Base>

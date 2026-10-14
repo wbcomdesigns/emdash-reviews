@@ -26,7 +26,9 @@ K=path/to/emdash-reviews/site-kit
 mkdir -p src/lib src/styles src/components
 cp $K/lib/reviews-strings.ts src/lib/
 cp $K/styles/reviews.css src/styles/
-cp $K/components/Reviews.astro $K/components/RatingBadge.astro src/components/
+cp $K/components/Reviews.astro $K/components/RatingBadge.astro $K/components/MyReviews.astro src/components/
+mkdir -p src/pages/account
+cp $K/pages/account/reviews.astro src/pages/account/reviews.astro
 
 # The two shared files are used by every Wbcom plugin. Line 1 carries a number
 # (wbcom-shared: N). Copy only when the site has no copy yet or an older one,
@@ -64,6 +66,14 @@ import RatingBadge from "../../components/RatingBadge.astro";
 ```
 
 A badge shows nothing for a page that has no rating, so it is safe to add to every card. Many badges on one page load with one request.
+
+## My reviews
+
+The copy above adds `/account/reviews/`. A guest sees **Sign in**, and that link brings them back to this page. A signed-in member sees each review with the page name, stars, the text, and a status: **Awaiting approval**, **Published**, or **Not approved**.
+
+**Delete all my reviews** asks for a second click, then removes only that member's reviews. The rating on each page updates at once.
+
+Add a menu link named **My reviews** pointing at `/account/reviews/`. In admin, open **Menus**, add a custom link, and save.
 
 ## Step 4: choose what can be reviewed
 

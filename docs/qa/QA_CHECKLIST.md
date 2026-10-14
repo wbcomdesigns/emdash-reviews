@@ -50,8 +50,8 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | M-1 | Write a review | Thanks message. Not in the list yet when moderation is on |
 | M-2 | Write again on the same post | It replaces the first. The live review and rating stay until the change is approved |
 | M-3 | Put `<b>` and `<img onerror>` in a review, have it approved | Shown as plain text. No script runs |
-| M-4 | Open My reviews | 0.2.0. Not in this release. Admin erase-by-email is the privacy path |
-| M-5 | Delete all my reviews (two clicks) | 0.2.0. Not in this release |
+| M-4 | Open My reviews | `/account/reviews/`. Guest sees Sign in. Member sees their rows with status |
+| M-5 | Delete all my reviews (two clicks) | Second click empties the list and the public rating drops. Another member's reviews stay |
 | M-6 | Send another member's id in a request | Ignored |
 | M-7 | Review a draft, a missing entry, a closed collection | Refused: reviews are not open for that page |
 | M-8 | Nine writes inside an hour | The ninth is refused |

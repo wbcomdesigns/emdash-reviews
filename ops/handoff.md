@@ -23,8 +23,7 @@ This branch: #39 admin standard.
 
 ## Next
 
-- Finish #39: walk admin at 1440 light/dark and 390, then PR. Do not publish until the owner says so.
-- #4 My reviews (0.2.0), which also covers #35
+- `0.2.0` adds My reviews (issue #4). Do not publish until the owner says so.
 - #19 trusted in-text block
 
 Registry proof (2026-10-14): `emdash-lab-all` :4340 updated 0.1.1 to 0.1.3 from the registry. Kit from `git archive v0.1.3`. Guest and admin flows hit `r_nt2pnhev44oaara3`. Slug stays 404.

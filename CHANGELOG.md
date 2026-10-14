@@ -2,6 +2,10 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [Unreleased]
+
+- New: My reviews at `/account/reviews/`. A member sees their own reviews and can delete them all with a second click. The rating on each page updates at once.
+
 ## [0.1.4]
 
 - Fix: signed-in members can review. On "Signed-in members only" guests see a sign-in link, and members write as their account.
