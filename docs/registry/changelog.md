@@ -1,3 +1,8 @@
+## 0.2.0
+
+- New: My reviews page where a member sees and deletes their reviews. Optional Reviews and Rating blocks for post text (trusted install).
+- Security: server-side calls run inside EmDash with no web request. Copy the kit again after updating.
+
 ## 0.1.4
 
 - Fix: members can review, and members-only pages show guests a sign-in link.
