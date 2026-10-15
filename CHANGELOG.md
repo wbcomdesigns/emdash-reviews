@@ -2,6 +2,10 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [Unreleased]
+
+- Docs: the guest 401 in the browser console is expected. EmDash 1.2 has no quieter signed-in check that keeps the page cached the same for everyone.
+
 ## [0.1.4]
 
 - Fix: signed-in members can review. On "Signed-in members only" guests see a sign-in link, and members write as their account.
