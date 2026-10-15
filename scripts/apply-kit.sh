@@ -18,7 +18,8 @@ for part in lib styles components pages; do
 		if [[ "$name" == wbcom-base.css || "$name" == wbcom-kit.ts ]] && [[ -f "$target" ]]; then
 			(( $(shared_version "$file") >= $(shared_version "$target") )) || continue
 		fi
-		cp -R "$file" "$target"
+		# A folder (pages/account) merges into an existing one instead of nesting inside it.
+		if [[ -d "$file" ]]; then mkdir -p "$target" && cp -R "$file/." "$target/"; else cp "$file" "$target"; fi
 	done
 done
 # Lab-only pages that mount the components for a browser walk.
