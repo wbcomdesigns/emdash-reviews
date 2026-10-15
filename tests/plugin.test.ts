@@ -147,7 +147,7 @@ describe("writing a review", () => {
 
 describe("moderation and rating", () => {
 	it("updates the rating on approve, on remove, and when the member rewrites or erases", async () => {
-		const { call, write, decide, live } = await open();
+		const { rt, call, write, decide, live, reviewId } = await open();
 		const rating = async () => {
 			const got = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as { average: number; count: number };
 			return [got.average, got.count];
@@ -166,10 +166,25 @@ describe("moderation and rating", () => {
 		expect(await rating()).toEqual([3, 2]);
 
 		await call("mine", {}, { method: "DELETE", user: ana });
+		expect(await rt.inspect.storage.get("reviews", reviewId("ana"))).toBeFalsy();
+		expect(await rt.inspect.storage.get("reviews", reviewId("ben"))).toBeTruthy();
 		expect(await rating()).toEqual([1, 1]);
 		await call("mine", {}, { method: "DELETE", user: ben });
 		expect(await rating()).toEqual([0, 0]);
 	});
+
+	it("erases every review a member wrote, past the 100-row storage page", async () => {
+		const { rt, call, write } = await open();
+		for (let n = 0; n < 105; n++) {
+			const post = await rt.fixtures.content("posts", { data: { title: `Post ${n}` }, slug: `post-${n}`, status: "published" } as never);
+			await rt.fixtures.plugin.kv("rate:write:ana", "0|0"); // the write rate limit is not under test here
+			await call("write", { collection: "posts", id: post.id, stars: 3 }, { method: "POST", user: ana });
+		}
+		await write(ben);
+		expect(await call("mine", {}, { method: "DELETE", user: ana })).toMatchObject({ ok: true, erased: 105 });
+		const left = await rt.inspect.storage.list<{ member_id: string }>("reviews");
+		expect(left.map((row) => row.data.member_id)).toEqual(["ben"]);
+	}, 60_000);
 
 	it("deletes a published review for good and updates the rating", async () => {
 		const { rt, call, write, decide, live, reviewId } = await open();

@@ -26,4 +26,9 @@ if [[ -d "$PLUGIN/site-kit/lab" ]]; then
 	mkdir -p "$LAB/src/pages"
 	cp -R "$PLUGIN/site-kit/lab/." "$LAB/src/pages/"
 fi
+# The in-text blocks are site code. They are copied next to the kit, not into pages/.
+if [[ -d "$PLUGIN/site-kit/blocks" ]]; then
+	mkdir -p "$LAB/src/reviews-block"
+	cp -R "$PLUGIN/site-kit/blocks/." "$LAB/src/reviews-block/"
+fi
 echo "Copied site-kit into $LAB"

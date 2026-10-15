@@ -375,13 +375,23 @@ const plugin: SandboxedPlugin = {
 			handler: async (routeCtx, ctx) => {
 				const user = routeCtx.user as Member | undefined;
 				if (!user) return SIGN_IN;
+				if (routeCtx.request.method === "DELETE") {
+					// Storage pages at 100, so erase page by page until none are left.
+					const entries = new Set<string>();
+					let erased = 0;
+					for (;;) {
+						const batch = rows(await ctx.storage.reviews.query({ where: { member_id: user.id }, limit: 100 }));
+						if (!batch.length) break;
+						for (const row of batch) entries.add(asString(row.entry));
+						const gone = await ctx.storage.reviews.deleteMany(batch.map((row) => row.id));
+						if (!gone) break;
+						erased += gone;
+					}
+					for (const entry of entries) await syncRating(ctx, entry);
+					return { ok: true, erased };
+				}
 				const found = await ctx.storage.reviews.query({ where: { member_id: user.id }, limit: 100 });
 				const mine = rows(found);
-				if (routeCtx.request.method === "DELETE") {
-					await Promise.all(mine.map((row) => ctx.storage.reviews.delete(row.id)));
-					for (const entry of new Set(mine.map((row) => asString(row.entry)))) await syncRating(ctx, entry);
-					return { ok: true, erased: mine.length };
-				}
 				const refs = await entryRefs(ctx, mine);
 				return {
 					ok: true,

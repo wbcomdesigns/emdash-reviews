@@ -45,4 +45,4 @@ How WB Reviews recognises a guest:
 
 ## What a visitor cannot do
 
-Visitors cannot edit or delete their own review, and they have no "My reviews" page. A member account page is planned for a later version. To remove a guest's reviews, use [delete by email](waiting-and-published.md#delete-a-guests-reviews-by-email).
+A guest cannot edit or delete their own review. A signed-in member cannot edit one review, but can delete all of theirs at [My reviews](../getting-started/install.md): `/account/reviews/`. To remove a guest's reviews, use [delete by email](waiting-and-published.md#delete-a-guests-reviews-by-email).

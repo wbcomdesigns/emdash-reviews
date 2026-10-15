@@ -35,7 +35,9 @@ K=path/to/emdash-reviews/site-kit
 mkdir -p src/lib src/styles src/components
 cp $K/lib/reviews-strings.ts src/lib/
 cp $K/styles/reviews.css src/styles/
-cp $K/components/Reviews.astro $K/components/RatingBadge.astro src/components/
+cp $K/components/Reviews.astro $K/components/RatingBadge.astro $K/components/MyReviews.astro src/components/
+mkdir -p src/pages/account
+cp $K/pages/account/reviews.astro src/pages/account/reviews.astro
 
 # The two shared files are used by every Wbcom plugin. Line 1 carries a number
 # (wbcom-shared: N). Copy only when the site has no copy yet or an older one,
@@ -66,6 +68,8 @@ import RatingBadge from "../components/RatingBadge.astro";
 
 Use the collection's real slug and the entry id. Reword visitor text in `src/lib/reviews-strings.ts`. The kit finds the plugin on a registry install and on a local install. Do not write `/_emdash/api/plugins/...` in your own files.
 
+The copy also adds `/account/reviews/` (**My reviews**). Add that address to your menu. A member sees their own reviews there and can delete them with a second click. Guests see a sign-in link.
+
 ## 4. Open it as an owner
 
 1. Admin → Reviews → Settings. Tick the content types by name. Choose who can review. Save.
@@ -74,7 +78,11 @@ Use the collection's real slug and the entry id. Reword visitor text in `src/lib
 
 A guest review always waits for approval. Stars alone are enough. Reword visitor text in `src/lib/reviews-strings.ts`.
 
-A member's own list (`MyReviews.astro`) is not in 0.1. Privacy erase is Admin → Published → find by email. The member screen is 0.2.0.
+A member deletes their own reviews at `/account/reviews/`. Guest reviews are still removed by an admin: Admin, Reviews, Published, find by email.
+
+## In-text blocks
+
+Copy `site-kit/blocks/` to `src/reviews-block/` and add `reviewsBlock()` under `plugins` in `astro.config.mjs`. The install guide has the lines. The registry plugin does not need this.
 
 ## Lab
 

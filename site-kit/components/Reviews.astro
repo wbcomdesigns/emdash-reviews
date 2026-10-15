@@ -17,7 +17,8 @@ interface Props {
 }
 
 const { collection, id, heading = S.heading } = Astro.props;
-const uid = `wbr-${id}`;
+// Unique per render: the same page can show this twice (the in-text block and the theme slot).
+const uid = `wbr-${id}-${crypto.randomUUID().slice(0, 8)}`;
 const zone = (await getSiteSettings())?.timezone || "";
 ---
 
