@@ -2,12 +2,15 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
-## [Unreleased]
+## [0.2.0]
 
-- Security - shared kit file updated: server-side plugin calls run inside EmDash with no web request.
-- New: My reviews at `/account/reviews/`. A member sees their own reviews and can delete them all with a second click. The rating on each page updates at once.
-- New: Optional Reviews and Rating blocks for post text. They are trusted site code you switch on in `astro.config.mjs`. The registry plugin is unchanged.
-- Docs: the guest 401 in the browser console is expected. EmDash 1.2 has no quieter signed-in check that keeps the page cached the same for everyone.
+Copy the kit again after you update.
+
+- New      - My reviews at `/account/reviews/`. A member sees their own reviews with their status and can delete them all with a second click. The rating on each page updates at once.
+- New      - Optional Reviews and Rating blocks for post text. They are trusted site code you switch on in `astro.config.mjs`. The registry plugin is unchanged.
+- Fix      - Delete all my reviews removes every review the member wrote, not only the first 100.
+- Security - Shared kit 5: server-side plugin calls run inside EmDash with no web request.
+- Dev      - Troubleshooting explains the guest 401 in the browser console. It is expected.
 
 ## [0.1.4]
 
