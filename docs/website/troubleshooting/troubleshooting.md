@@ -11,9 +11,15 @@ Check these in order:
 3. **Did you save?** Choose **Save** on the tab. Each tab saves on its own.
 4. **Is the page published?** Only published pages can be reviewed.
 
-## The form is missing and I see "Sign in to write a review."
+## The form is missing and I see "Only members can review this page."
 
-**Who can leave a review** is set to **Signed-in members only**. In version 0.1.4 the form stays hidden for everyone in this mode, even a signed-in member. To let people review, choose **Anyone** on the **Who can review** tab.
+**Who can leave a review** is set to **Signed-in members only**. A guest sees that line and a sign-in link. A signed-in member sees the form and writes as their account, with no name field. To let guests review, choose **Anyone** on the **Who can review** tab.
+
+## Why does the console show a 401?
+
+On a page with reviews, the kit asks whether the visitor is signed in. EmDash answers "not signed in" with status 401. The browser lists that in the console in red. Visitors never see it, and the form still works: a guest sees **Your name**, and a signed-in member does not.
+
+EmDash 1.2 keeps the session cookie hidden from scripts, and the public "who am I" address returns the same 401 for a guest. There is no quieter check that still works on a page cached the same for everyone. The red line is expected.
 
 ## A visitor sent a review and I cannot find it
 

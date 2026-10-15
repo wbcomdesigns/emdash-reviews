@@ -23,8 +23,7 @@ This branch: #39 admin standard.
 
 ## Next
 
-- `0.2.0` adds My reviews (issue #4). Do not publish until the owner says so.
-- #19 trusted in-text block
+- Next release (0.2.0): My reviews (#4), the in-text Reviews and Rating blocks (#19), and the guest 401 docs (#47). Sync the shared kit to version 5 (#49) before publishing. Do not publish until the owner says so.
 
 Registry proof (2026-10-14): `emdash-lab-all` :4340 updated 0.1.1 to 0.1.3 from the registry. Kit from `git archive v0.1.3`. Guest and admin flows hit `r_nt2pnhev44oaara3`. Slug stays 404.
 

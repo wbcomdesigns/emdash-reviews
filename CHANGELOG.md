@@ -6,6 +6,7 @@ Versions match `package.json`, the git tag and the registry release. Newest firs
 
 - New: My reviews at `/account/reviews/`. A member sees their own reviews and can delete them all with a second click. The rating on each page updates at once.
 - New: Optional Reviews and Rating blocks for post text. They are trusted site code you switch on in `astro.config.mjs`. The registry plugin is unchanged.
+- Docs: the guest 401 in the browser console is expected. EmDash 1.2 has no quieter signed-in check that keeps the page cached the same for everyone.
 
 ## [0.1.4]
 
