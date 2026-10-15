@@ -23,9 +23,8 @@ This branch: #39 admin standard.
 
 ## Next
 
-- Next release (0.2.0): My reviews (#4), the in-text Reviews and Rating blocks (#19), and the guest 401 docs (#47). Sync the shared kit to version 5 (#49) before publishing. Do not publish until the owner says so.
-
-Registry proof (2026-10-14): `emdash-lab-all` :4340 updated 0.1.1 to 0.1.3 from the registry. Kit from `git archive v0.1.3`. Guest and admin flows hit `r_nt2pnhev44oaara3`. Slug stays 404.
+- 0.2.0 is live (2026-10-15): My reviews at `/account/reviews/`, optional Reviews and Rating blocks for post text (trusted install), shared kit 5.
+- No open issues. Findings after a release: patch only if a site owner is exposed, otherwise a card for the next milestone.
 
 ## How to work
 
