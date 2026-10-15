@@ -11,6 +11,7 @@ const ok = () => new Response(JSON.stringify({ success: true, data: { ok: true }
 
 async function fresh() {
 	vi.resetModules();
+	vi.stubGlobal("window", {});
 	return (await import("../site-kit/lib/wbcom-kit")).pluginFetch as typeof pluginFetch;
 }
 
@@ -77,5 +78,40 @@ describe("kit finds Reviews routes on any install", () => {
 		);
 		expect((await call(SLUG, "list?id=x")).status).toBe(404);
 		expect(seen).toHaveLength(1);
+	});
+});
+
+describe("server-side calls", () => {
+	it("pluginFetch refuses every server-side call, so no address is ever fetched from server code", async () => {
+		vi.resetModules();
+		const kit = await import("../site-kit/lib/wbcom-kit");
+		const seen: string[] = [];
+		vi.stubGlobal("fetch", async (url: string) => (seen.push(url), ok()));
+		expect((await kit.pluginFetch(SLUG, "health")).status).toBe(503);
+		expect(seen).toHaveLength(0);
+	});
+
+	it("callPluginRoute falls back from the registry id to the plugin name, and says when it is not installed", async () => {
+		vi.resetModules();
+		const kit = await import("../site-kit/lib/wbcom-kit");
+		const id = await kit.registryPluginId(SLUG);
+		const routed: string[] = [];
+		const handler = (installed: string) => async (pluginId: string, _method: string, path: string) => (
+			routed.push(`${pluginId}/${path}`),
+			pluginId === installed
+				? { success: true, data: { ok: true } }
+				: { success: false, error: { code: "NOT_FOUND", message: "Plugin route not found" } }
+		);
+		expect(
+			await kit.callPluginRoute({ emdash: { handlePublicPluginApiRoute: handler(SLUG) } }, SLUG, "health"),
+		).toMatchObject({ ok: true });
+		expect(routed).toEqual([`${id}/health`, `${SLUG}/health`]);
+		expect(
+			await kit.callPluginRoute({ emdash: { handlePublicPluginApiRoute: handler("other") } }, SLUG, "health"),
+		).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+		expect(await kit.callPluginRoute({}, SLUG, "health")).toMatchObject({
+			ok: false,
+			error: { code: "UNAVAILABLE" },
+		});
 	});
 });
