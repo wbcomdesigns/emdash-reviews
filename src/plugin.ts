@@ -27,6 +27,7 @@ const TITLE_MAX = 120;
 const BODY_MAX = 1000;
 const NAME_MAX = 80;
 const LIST_PAGE = 10;
+const LIST_MAX_PAGE = 50;
 const NOTIFY_CRON = "0 * * * *";
 
 const NOT_REVIEWABLE = {
@@ -113,6 +114,9 @@ async function saveReview(ctx: PluginContext, input: SaveInput): Promise<{ ok: t
 			pending_title: input.title,
 			pending_body: input.body,
 			pending_has_text: hasText,
+			// Guests are keyed by address, so a second person on one address can land here: keep their name.
+			pending_author: input.author,
+			pending_email: input.email,
 			rev: crypto.randomUUID(),
 		});
 		return { ok: true, status: "pending" };
@@ -240,38 +244,36 @@ const plugin: SandboxedPlugin = {
 				const raw = asRecord(routeCtx.input);
 				const sortRaw = asString(raw.sort);
 				const sort = sortRaw === "highest" || sortRaw === "lowest" ? sortRaw : "newest";
-				const page = Math.max(1, asNumber(raw.page) ?? 1);
 				const entry = entryKey(at.collection, at.id);
-				const [published, rating] = await Promise.all([
-					allReviews(ctx, { entry, status: "published" }, { createdAt: "desc" }),
-					ctx.storage.ratings.get(entry),
-				]);
-				const bars = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-				for (const row of published) {
-					const stars = clampStars(row.stars);
-					if (stars === 1 || stars === 2 || stars === 3 || stars === 4 || stars === 5) bars[stars] += 1;
+				let rating = asRecord(await ctx.storage.ratings.get(entry));
+				// Build the rating row once when it is from 0.2.0 or earlier (no bars), or missing while published
+				// reviews exist (0.2.0 could delete it when waiting reviews filled its one read).
+				const stale = asNumber(rating.count)
+					? !Array.isArray(rating.bars)
+					: (await ctx.storage.reviews.count({ entry, status: "published" })) > 0;
+				if (stale) {
+					await syncRating(ctx, entry);
+					rating = asRecord(await ctx.storage.ratings.get(entry));
 				}
-				const listed = published.filter((row) =>
-					row.has_text === false ? false : row.has_text === true || Boolean(asString(row.title) || asString(row.body)),
-				);
-				listed.sort((a, b) => {
-					if (sort === "highest") return (asNumber(b.stars) ?? 0) - (asNumber(a.stars) ?? 0);
-					if (sort === "lowest") return (asNumber(a.stars) ?? 0) - (asNumber(b.stars) ?? 0);
-					return asString(b.createdAt).localeCompare(asString(a.createdAt));
-				});
-				const total = listed.length;
-				const pages = Math.max(1, Math.ceil(total / LIST_PAGE) || 1);
-				const current = Math.min(page, pages);
+				const counts = Array.isArray(rating.bars) ? rating.bars.map((n) => asNumber(n) ?? 0) : [0, 0, 0, 0, 0];
+				const bars = { 1: counts[0], 2: counts[1], 3: counts[2], 4: counts[3], 5: counts[4] };
+				const total = asNumber(rating.text_count) ?? 0;
+				const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
+				// ponytail: page N walks N*10 rows in reads of 100, capped at page 50 (500 rows). Add an offset or a
+				// cursor in the kit if visitors ever need to page deeper than that.
+				const current = Math.min(Math.max(1, Math.floor(asNumber(raw.page) ?? 1)), pages, LIST_MAX_PAGE);
+				const orderBy: Record<string, "asc" | "desc"> =
+					sort === "newest" ? { createdAt: "desc" } : { stars: sort === "highest" ? "desc" : "asc" };
+				const listed = await allReviews(ctx, { entry, status: "published", has_text: true }, orderBy, current * LIST_PAGE);
 				const items = listed.slice((current - 1) * LIST_PAGE, current * LIST_PAGE).map(publicItem);
-				const summary = asRecord(rating);
 				return {
 					ok: true,
 					items,
-					average: asNumber(summary.average) ?? 0,
-					count: asNumber(summary.count) ?? 0,
+					average: asNumber(rating.average) ?? 0,
+					count: asNumber(rating.count) ?? 0,
 					total,
 					page: current,
-					pages,
+					pages: Math.min(pages, LIST_MAX_PAGE),
 					sort,
 					bars,
 				};
@@ -370,6 +372,12 @@ const plugin: SandboxedPlugin = {
 					alwaysPending: true,
 				});
 			},
+		},
+		// The kit's "is this visitor signed in?" check: one cheap answer, no reads.
+		me: {
+			permission: MEMBER,
+			methods: ["GET"],
+			handler: async (routeCtx) => (routeCtx.user ? { ok: true } : SIGN_IN),
 		},
 		// A member's own reviews. DELETE erases them all. Kept for 0.2.0 My reviews.
 		mine: {

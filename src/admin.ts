@@ -110,6 +110,8 @@ function noteFor(row: Record<string, unknown>): string {
 	const bits: string[] = [];
 	bits.push(row.guest === true ? "Guest" : "Member");
 	if (row.pending_change === true) bits.push("Change waiting");
+	const incoming = asString(row.pending_author);
+	if (row.pending_change === true && incoming && incoming !== asString(row.author)) bits.push(`New name: ${incoming}`);
 	return bits.join(" · ");
 }
 
@@ -612,17 +614,26 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			if (!email) {
 				return renderList(ctx, { kind: "published", page: 1, q: view.q }, { message: "Enter an email.", type: "error" });
 			}
-			const found = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
-			if (!found.length) {
+			// A privacy erase: page until none are left (storage answers 100 rows at a time).
+			const entries = new Set<string>();
+			let erased = 0;
+			for (;;) {
+				const batch = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
+				if (!batch.length) break;
+				for (const row of batch) entries.add(asString(row.entry));
+				const gone = await ctx.storage.reviews.deleteMany(batch.map((row) => row.id));
+				if (!gone) break;
+				erased += gone;
+			}
+			if (!erased) {
 				return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
 					message: "No reviews with that email.",
 					type: "info",
 				});
 			}
-			await Promise.all(found.map((row) => ctx.storage.reviews.delete(row.id)));
-			for (const entry of new Set(found.map((row) => asString(row.entry)))) await syncRating(ctx, entry);
+			for (const entry of entries) await syncRating(ctx, entry);
 			return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
-				message: `Deleted ${found.length} ${found.length === 1 ? "review" : "reviews"}.`,
+				message: `Deleted ${erased} ${erased === 1 ? "review" : "reviews"}.`,
 				type: "success",
 			});
 		}
@@ -734,6 +745,10 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				title: asString(row.pending_title),
 				body: asString(row.pending_body),
 				has_text: row.pending_has_text === true,
+				author: asString(row.pending_author) || row.author,
+				email: row.pending_author ? asString(row.pending_email) : row.email,
+				pending_author: "",
+				pending_email: "",
 				pending_change: false,
 				pending_stars: null,
 				pending_title: "",
@@ -750,6 +765,8 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				pending_title: "",
 				pending_body: "",
 				pending_has_text: false,
+				pending_author: "",
+				pending_email: "",
 				status: "published",
 				rev: crypto.randomUUID(),
 			});

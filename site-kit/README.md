@@ -38,7 +38,7 @@ After every plugin update, run step 2 with the new tag. The command clones into 
 
 Reword visitor text in `src/lib/reviews-strings.ts`. Do not write `/_emdash/api/plugins/...` in your own files: the kit finds the plugin at its registry address and at its local one.
 
-A guest's browser console shows a 401 for `.../mine`. That is the kit asking whether the visitor is signed in; the page is fine.
+A guest's browser console shows a 401 for `.../me` on a post (and `.../mine` on My reviews). That is the kit asking whether the visitor is signed in; the page is fine.
 
 ## Optional: the in-text blocks
 

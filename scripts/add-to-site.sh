@@ -2,7 +2,8 @@
 # Copies the WB Reviews site kit into an EmDash site. Safe to run again after every plugin update.
 #   /path/to/emdash-reviews/scripts/add-to-site.sh /path/to/your/site
 # It never replaces a newer shared file another Wbcom plugin copied, never replaces
-# src/layouts/ReviewsLayout.astro once it exists, and backs up a wording file you changed.
+# src/layouts/ReviewsLayout.astro once it exists, backs up a wording file you changed, and backs
+# up any same-named file of your own (one without the wb-reviews-kit marker) before replacing it.
 set -euo pipefail
 
 KIT="$(cd "$(dirname "$0")/../site-kit" && pwd)"
@@ -29,18 +30,30 @@ for part in lib/wbcom-kit.ts styles/wbcom-base.css; do
 	fi
 done
 
+stamp="$(date +%Y%m%d-%H%M%S)"
+
 # The wording file is meant to be edited. Keep the owner's copy before replacing it.
 strings="$SITE/src/lib/reviews-strings.ts"
 if [[ -f "$strings" ]] && ! cmp -s "$KIT/lib/reviews-strings.ts" "$strings"; then
-	backup="$strings.bak-$(date +%Y%m%d)"
-	cp "$strings" "$backup"
-	notes+=("Your wording file differed, so it was saved as ${backup#"$SITE/"}. Copy your changes back into src/lib/reviews-strings.ts.")
+	cp "$strings" "$strings.bak-$stamp"
+	notes+=("Your wording file differed, so it was saved as src/lib/reviews-strings.ts.bak-$stamp. Copy your changes back into src/lib/reviews-strings.ts.")
 fi
 cp "$KIT/lib/reviews-strings.ts" "$strings"
 
-cp "$KIT/styles/reviews.css" "$SITE/src/styles/"
-cp "$KIT/components/Reviews.astro" "$KIT/components/RatingBadge.astro" "$KIT/components/MyReviews.astro" "$SITE/src/components/"
-cp "$KIT/pages/account/reviews.astro" "$SITE/src/pages/account/reviews.astro"
+# A file with one of these names that is not a WB Reviews kit file belongs to the site: keep a copy
+# before replacing it. Kit files carry the wb-reviews-kit marker; kits before 0.2.1 are known by
+# their data-wbr hooks, .wbr- classes or the MyReviews import.
+place() {
+	local from="$1" rel="$2" target="$SITE/$2"
+	if [[ -f "$target" ]] && ! cmp -s "$from" "$target" && ! grep -qE 'wb-reviews-kit|data-wbr|\.wbr-|MyReviews\.astro' "$target"; then
+		cp "$target" "$target.bak-$stamp"
+		notes+=("$rel was not a WB Reviews kit file, so your copy was saved as $rel.bak-$stamp.")
+	fi
+	cp "$from" "$target"
+}
+place "$KIT/styles/reviews.css" src/styles/reviews.css
+for name in Reviews RatingBadge MyReviews; do place "$KIT/components/$name.astro" "src/components/$name.astro"; done
+place "$KIT/pages/account/reviews.astro" src/pages/account/reviews.astro
 
 layout="new"
 if [[ -f "$SITE/src/layouts/ReviewsLayout.astro" ]]; then layout="yours, left as it is"; else cp "$KIT/layouts/ReviewsLayout.astro" "$SITE/src/layouts/"; fi

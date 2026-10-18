@@ -179,6 +179,7 @@ Base: `/_emdash/api/plugins/<id>/<name>`. On a registry install `<id>` is `r_nt2
 | `list` | public | GET | `collection`, `id`, `page`, `sort` (newest, highest, lowest). 10 per page, with `total` and the count per star level | Published reviews (author, stars, title, body, createdAt), `average`, `count`. Includes `owner_reply`. Star-only ratings are counted, not listed |
 | `summary` | public | GET | `collection`, `ids` (comma list, 50 max) | `ratings` map of id to `{average, count}` |
 | `write` | member | POST | `collection`, `id`, `stars`, `title`, `body` | `status`: pending or published |
+| `me` | member | GET | - | `{ ok: true }` for a signed-in visitor; the kit's sign-in check (0.2.1) |
 | `mine` | member | GET, DELETE | - | GET: own reviews with page title and link. DELETE: erase all own reviews |
 | `write_guest` | public | POST | `collection`, `id`, `stars`, `title`, `body`, `name`, honeypot field | `status`: always pending. Refused when the setting is members, and with `GUEST_UNAVAILABLE` when EmDash passes no visitor address |
 | `admin` | admin | POST | Block Kit | Queue, published list, settings |

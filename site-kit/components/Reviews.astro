@@ -1,4 +1,5 @@
 ---
+// wb-reviews-kit: WB Reviews kit file. Running add-to-site.sh again replaces it.
 /**
  * Reviews and the review form for one entry. Drop it into any page:
  *   <Reviews collection="posts" id={post.data.id} />
@@ -167,6 +168,15 @@ const zone = (await getSiteSettings())?.timezone || "";
 		else list.querySelector("ul")?.insertAdjacentHTML("beforeend", html);
 	}
 
+	// Pages are cached the same for everyone, so ask a member route once per page. A guest gets a
+	// 401 here, shown in the browser console; that is expected and the page is fine. An engine older
+	// than 0.2.1 has no "me" route, so fall back to "mine" there.
+	const signedInCheck = document.querySelector("[data-wbr]")
+		? api("reviews", "me").then(async (me) =>
+				me.ok ? true : me.error?.code === "SIGN_IN_REQUIRED" ? false : Boolean((await api("reviews", "mine")).ok),
+			)
+		: Promise.resolve(false);
+
 	document.querySelectorAll<HTMLElement>("[data-wbr]").forEach(async (root) => {
 		const collection = root.dataset.collection ?? "";
 		const id = root.dataset.id ?? "";
@@ -190,9 +200,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const anyone = health.who !== "members";
 		// Guests can write only where the host passes EmDash the visitor's address (health says so).
 		const guestsWrite = anyone && health.guestWrites !== false;
-		// Pages are cached the same for everyone, so ask a member route. A guest gets a 401 here,
-		// shown in the browser console; that is expected and the page is fine.
-		const signedIn = Boolean((await api("reviews", "mine")).ok);
+		const signedIn = await signedInCheck;
 		const canWrite = signedIn || guestsWrite;
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const signInBox = root.querySelector<HTMLElement>("[data-wbr-signin]");

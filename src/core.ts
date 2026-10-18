@@ -152,7 +152,8 @@ export async function entryRefs(
  */
 export async function syncRating(ctx: PluginContext, entry: string): Promise<void> {
 	if (!entry) return;
-	const stars = (await allReviews(ctx, { entry, status: "published" })).map((row) => asNumber(row.stars) ?? 0);
+	const published = await allReviews(ctx, { entry, status: "published" });
+	const stars = published.map((row) => asNumber(row.stars) ?? 0);
 	if (!stars.length) {
 		await ctx.storage.ratings.delete(entry);
 		return;
@@ -163,6 +164,9 @@ export async function syncRating(ctx: PluginContext, entry: string): Promise<voi
 		entryId: entry.slice(split + 1),
 		average: Math.round((stars.reduce((sum, value) => sum + value, 0) / stars.length) * 10) / 10,
 		count: stars.length,
+		// Read by the public list route, so a visitor's request never walks every review.
+		bars: [1, 2, 3, 4, 5].map((n) => stars.filter((value) => Math.min(Math.max(Math.round(value), 1), 5) === n).length),
+		text_count: published.filter((row) => row.has_text === true).length,
 	});
 }
 

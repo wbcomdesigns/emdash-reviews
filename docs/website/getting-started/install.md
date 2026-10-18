@@ -107,7 +107,7 @@ Use the header your host or proxy actually sets. Without an address the plugin c
 
 ## In the browser console
 
-A guest's console shows one red 401 for `.../mine` on each page with reviews. That is the kit asking whether the visitor is signed in. The page is fine. A 404 for `.../r_nt2pnhev44oaara3/...` can also show on a site that installed the plugin from local files; the kit then uses the plugin's name.
+A guest's console shows one red 401 for `.../me` on each page with reviews, and for `.../mine` on My reviews. That is the kit asking whether the visitor is signed in. The page is fine. A 404 for `.../r_nt2pnhev44oaara3/...` can also show on a site that installed the plugin from local files; the kit then uses the plugin's name.
 
 ## For the in-text block
 

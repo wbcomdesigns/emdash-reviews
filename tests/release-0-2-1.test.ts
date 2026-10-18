@@ -120,10 +120,12 @@ describe("waiting reviews never hide published ones", () => {
 		const row = await rt.inspect.storage.get<{ rev: string }>("reviews", `posts:${live}:v-last`);
 		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|posts:${live}:v-last` });
 		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ count: 621 });
+		// Show more pages up to 50 (500 reviews); the count and total stay exact.
 		expect(await call("list", { collection: "posts", id: live, page: 63 }, { method: "GET" })).toMatchObject({
+			count: 621,
 			total: 621,
-			pages: 63,
-			page: 63,
+			pages: 50,
+			page: 50,
 		});
 	}, 120_000);
 
@@ -146,6 +148,63 @@ describe("waiting reviews never hide published ones", () => {
 		await call("admin", { type: "form_submit", action_id: "save_collections", values: { collections: [] }, page: "/settings" });
 		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ items: [], count: 0 });
 		expect(await call("summary", { collection: "posts", ids: live }, { method: "GET" })).toMatchObject({ ratings: {} });
+	});
+});
+
+describe("list reads one page, not every review", () => {
+	it("sorts by stars, serves bars from the rating row, and rebuilds a 0.2.0 rating row once", async () => {
+		const { call, rt, live } = await site();
+		const put = (id: string, data: Record<string, unknown>) => rt.fixtures.plugin.storage("reviews", id, data);
+		const base = { entry: `posts:${live}`, collection: "posts", entryId: live, status: "published", rev: "r" };
+		await put(`posts:${live}:a`, { ...base, author: "A", stars: 2, body: "Two", has_text: true, createdAt: "2026-10-01T00:00:00Z" });
+		await put(`posts:${live}:b`, { ...base, author: "B", stars: 5, body: "Five", has_text: true, createdAt: "2026-10-02T00:00:00Z" });
+		await put(`posts:${live}:c`, { ...base, author: "C", stars: 4, title: "", body: "", has_text: false, createdAt: "2026-10-03T00:00:00Z" });
+		// A rating row as 0.2.0 stored it: no bars, no text count.
+		await rt.fixtures.plugin.storage("ratings", `posts:${live}`, { collection: "posts", entryId: live, average: 3.7, count: 3 });
+		const newest = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as Record<string, unknown>;
+		expect(newest).toMatchObject({ count: 3, total: 2, bars: { 1: 0, 2: 1, 3: 0, 4: 1, 5: 1 } });
+		expect((newest.items as Array<{ author: string }>).map((i) => i.author)).toEqual(["B", "A"]);
+		const lowest = (await call("list", { collection: "posts", id: live, sort: "lowest" }, { method: "GET" })) as { items: Array<{ author: string }> };
+		expect(lowest.items.map((i) => i.author)).toEqual(["A", "B"]);
+		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ bars: [0, 1, 0, 1, 1], text_count: 2 });
+	});
+});
+
+describe("member check and erasure", () => {
+	it("answers me cheaply for members and 'sign in' for guests", async () => {
+		const { call } = await site();
+		expect(await call("me", {}, { method: "GET", user: ana })).toEqual({ ok: true });
+		expect(await call("me", {}, { method: "GET" })).toMatchObject({ ok: false, error: { code: "SIGN_IN_REQUIRED" } });
+	});
+
+	it("deletes every review with a guest email, past the first 100", async () => {
+		const { call, rt, live } = await site();
+		for (let n = 0; n < 130; n += 1) {
+			await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-e${n}`, {
+				entry: `posts:${live}`, collection: "posts", entryId: live, status: n % 2 ? "published" : "pending",
+				stars: 3, body: `Mail ${n}`, has_text: true, email: "sam@example.com", rev: "r", createdAt: "2026-10-01T00:00:00Z",
+			});
+		}
+		const done = (await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "sam@example.com" }, page: "/published" })) as {
+			toast: { message: string };
+		};
+		expect(done.toast.message).toBe("Deleted 130 reviews.");
+		expect(await rt.inspect.storage.list("reviews")).toHaveLength(0);
+		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toBeNull();
+	}, 60_000);
+
+	it("keeps a second guest's name on the same address and shows it before approval", async () => {
+		const { call, rt, live, guestWrite } = await site();
+		await guestWrite("198.51.100.30", { name: "Ana Guest", body: "First person." });
+		const id = (await rt.inspect.storage.list("reviews"))[0].id;
+		let row = await rt.inspect.storage.get<{ rev: string }>("reviews", id);
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|${id}` });
+		await guestWrite("198.51.100.30", { name: "Ben Guest", body: "Second person.", stars: 2 });
+		expect(blocksText(await rt.admin.loadPage("/waiting"))).toContain("New name: Ben Guest");
+		row = await rt.inspect.storage.get<{ rev: string }>("reviews", id);
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|${id}` });
+		expect(await rt.inspect.storage.get("reviews", id)).toMatchObject({ author: "Ben Guest", body: "Second person.", stars: 2 });
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ items: [{ author: "Ben Guest" }] });
 	});
 });
 
