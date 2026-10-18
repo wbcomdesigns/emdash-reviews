@@ -1,17 +1,19 @@
 import type { PluginContext } from "emdash/plugin";
 
-import { allowedCollections, entryRefs, siteCollections, syncRating, waitingCount } from "./core";
-import { asBoolean, asNumber, asRecord, asString, asStringArray, plainText, rows } from "./util";
+import { allowedCollections, allReviews, entryRefs, noMailProvider, sendMail, siteCollections, syncRating, waitingCount } from "./core";
+import { asBoolean, asNumber, asRecord, asString, asStringArray, guestAddress, plainText, rows } from "./util";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
 type Kind = "waiting" | "published";
 type View = { kind: Kind; page: number; q: string; replyId?: string; detailId?: string };
-type RouteUi = { ui?: { surface?: string } };
+type RouteUi = { ui?: { surface?: string }; requestMeta?: { ip?: string | null } };
 
 const PAGE_SIZE = 25;
-// ponytail: find and paging scan this many rows per status. Raise or index a search field if a site passes it.
-const SCAN = 500;
+// ponytail: find and paging walk up to this many rows of one status. Index a search field if a site passes it.
+const SCAN = 5000;
+const REPO = "https://github.com/wbcomdesigns/emdash-reviews";
+const KIT_DONE = "kit_done";
 const REPLY_MAX = 1000;
 const CLIP = 80;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -114,27 +116,58 @@ function confirm(title: string, text: string, ok: string): Record<string, unknow
 	return { title, text, confirm: ok, deny: "Cancel" };
 }
 
+function installGuide(ctx: PluginContext): string {
+	return `${REPO}/blob/v${asString(ctx.plugin.version)}/docs/website/getting-started/install.md`;
+}
+
+/**
+ * The first screen tells the owner where visitor pages come from: a registry plugin cannot add
+ * pages, so until the site kit is copied the visitor addresses are the site's 404. Shown until the
+ * owner says the pages are set up, then one link to the guide.
+ */
+async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unknown>>> {
+	const guide = { type: "link", label: "Install guide", target: { kind: "external", url: installGuide(ctx) } };
+	if ((await ctx.kv.get<boolean>(KIT_DONE)) === true) return [{ type: "actions", elements: [guide] }];
+	const tag = `v${asString(ctx.plugin.version)}`;
+	return [
+		{
+			type: "banner",
+			title: "Set up visitor pages",
+			description:
+				"Visitors see reviews only after the site kit is in your site's code. A registry plugin cannot add pages by itself, so until then posts show no reviews and /account/reviews/ shows your 404 page.",
+		},
+		{ type: "context", text: `From your site's root folder, run this command. It gets the kit for this version (${tag}) and copy it in.` },
+		{
+			type: "code",
+			language: "bash",
+			// A fresh mktemp folder (never a fixed /tmp path someone else could create first), and the script runs only if the clone worked.
+			code: `kit="$(mktemp -d)" && git clone --branch ${tag} --depth 1 ${REPO} "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .`,
+		},
+		{
+			type: "fields",
+			fields: [
+				{ label: "Each post page", value: "Reviews, the rating bars and the review form" },
+				{ label: "Post cards", value: "The star rating" },
+				{ label: "/account/reviews/", value: "My reviews, for signed-in members" },
+			],
+		},
+		{ type: "context", text: "The command prints the lines to paste into your templates and the menu link to add in Admin, Menus." },
+		{
+			type: "actions",
+			elements: [{ type: "button", label: "Visitor pages are set up", action_id: KIT_DONE, style: "primary" }, guide],
+		},
+	];
+}
+
 async function listed(ctx: PluginContext, view: View) {
-	const published = rows(
-		await ctx.storage.reviews.query({
-			where: { status: "published" },
-			orderBy: { createdAt: "desc" },
-			limit: SCAN,
-		}),
-	);
-	const pending = rows(
-		await ctx.storage.reviews.query({
-			where: { status: "pending" },
-			orderBy: { createdAt: "desc" },
-			limit: SCAN,
-		}),
-	);
+	const newest = { createdAt: "desc" } as const;
 	let items =
 		view.kind === "waiting"
-			? [...pending, ...published.filter((row) => row.pending_change === true)].sort((a, b) =>
-					asString(b.createdAt).localeCompare(asString(a.createdAt)),
-				)
-			: published;
+			? [
+					...(await allReviews(ctx, { status: "pending" }, newest, SCAN)),
+					...(await allReviews(ctx, { status: "published", pending_change: true }, newest, SCAN)),
+				].sort((a, b) => asString(b.createdAt).localeCompare(asString(a.createdAt)))
+			: await allReviews(ctx, { status: "published" }, newest, SCAN);
 	const needle = view.q.toLowerCase();
 	if (needle) {
 		items = items.filter((row) =>
@@ -147,14 +180,29 @@ async function listed(ctx: PluginContext, view: View) {
 	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
 	const page = Math.min(Math.max(view.page, 1), pages);
 	const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-	return { slice, total, page, pages, published, view: { ...view, page } };
+	return { slice, total, page, pages, view: { ...view, page } };
 }
 
-function listStats(waiting: number, published: Array<Record<string, unknown>>) {
-	const since = Date.now() - WEEK_MS;
-	const week = published.filter((row) => new Date(asString(row.createdAt)).getTime() >= since).length;
-	const stars = published.map((row) => asNumber(row.stars) ?? 0).filter((n) => n > 0);
-	const average = stars.length ? Math.round((stars.reduce((sum, n) => sum + n, 0) / stars.length) * 10) / 10 : 0;
+/** Site-wide numbers from counts and the per-page rating rows, never from one capped list. */
+async function listStats(ctx: PluginContext) {
+	const since = new Date(Date.now() - WEEK_MS).toISOString();
+	const [waiting, week] = await Promise.all([
+		waitingCount(ctx),
+		ctx.storage.reviews.count({ status: "published", createdAt: { gte: since } }),
+	]);
+	let stars = 0;
+	let count = 0;
+	let cursor: string | undefined;
+	do {
+		const page = await ctx.storage.ratings.query({ limit: 100, cursor });
+		for (const row of rows(page)) {
+			const n = asNumber(row.count) ?? 0;
+			stars += (asNumber(row.average) ?? 0) * n;
+			count += n;
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	const average = count ? Math.round((stars / count) * 10) / 10 : 0;
 	return {
 		type: "stats",
 		items: [
@@ -299,9 +347,8 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 }
 
 export async function renderList(ctx: PluginContext, view: View, toast?: Toast): Promise<BlockResponse> {
-	const { slice, total, page, pages, published, view: current } = await listed(ctx, view);
+	const { slice, total, page, pages, view: current } = await listed(ctx, view);
 	const waiting = current.kind === "waiting";
-	const waitingTotal = await waitingCount(ctx);
 	const actions: Array<[string, string]> = waiting
 		? [
 				["Read", "read"],
@@ -322,7 +369,8 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 	return {
 		blocks: [
 			{ type: "header", text: title },
-			listStats(waitingTotal, published),
+			...(waiting ? await setupBlocks(ctx) : []),
+			await listStats(ctx),
 			{
 				type: "form",
 				block_id: "find",
@@ -369,13 +417,33 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 	};
 }
 
-export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise<BlockResponse> {
+export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
 	const settings = await loadSettings(ctx);
 	const noneOpen = settings.site.length > 0 && settings.open.length === 0;
 	const noSchema = settings.site.length === 0;
+	// The admin's own request comes through the same host as a visitor's, so it shows whether EmDash gets visitor addresses here.
+	const guestsOff = settings.who === "anyone" && guestAddress(routeCtx?.requestMeta?.ip) === null;
+	const noMail = await noMailProvider(ctx);
 	return {
 		blocks: [
 			{ type: "header", text: "Settings" },
+			guestsOff
+				? {
+						type: "banner",
+						title: "Guests are asked to sign in on this hosting",
+						description:
+							"Guests need a host that tells EmDash the visitor's address: Cloudflare, or trustedProxyHeaders in the site config. Members can still review.",
+						variant: "alert",
+					}
+				: null,
+			guestsOff
+				? {
+						type: "actions",
+						elements: [
+							{ type: "link", label: "Guests and hosting", target: { kind: "external", url: `${installGuide(ctx)}#guests-and-hosting` } },
+						],
+					}
+				: null,
 			noSchema
 				? {
 						type: "banner",
@@ -440,7 +508,7 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 							{ type: "context", text: "Anyone is the default. A guest review always waits for approval." },
 							{
 								type: "context",
-								text: "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker.",
+								text: "Guests are counted by their visitor address, which the host must pass to EmDash. Where it does not, guests are asked to sign in.",
 							},
 							{
 								type: "form",
@@ -471,6 +539,17 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 					{
 						label: "Email",
 						blocks: [
+							...(noMail
+								? [
+										{
+											type: "banner",
+											variant: "alert",
+											title: "This site has no email provider",
+											description:
+												"No notice will be sent until one is set up, for example the official Resend plugin. The dashboard card still shows what is waiting.",
+										} as Record<string, unknown>,
+									]
+								: []),
 							...(settings.notify && !settings.notifyTo.includes("@")
 								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Record<string, unknown>]
 								: []),
@@ -505,8 +584,8 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 	};
 }
 
-function show(ctx: PluginContext, page: string, view: View, toast?: Toast): Promise<BlockResponse> {
-	if (kindOf(page) === "settings") return renderSettings(ctx, toast);
+function show(ctx: PluginContext, page: string, view: View, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
+	if (kindOf(page) === "settings") return renderSettings(ctx, routeCtx, toast);
 	return renderList(ctx, view, toast);
 }
 
@@ -568,14 +647,14 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			const known = new Set(site.map((item) => item.slug));
 			const picked = asStringArray(values.collections).filter((slug) => known.has(slug));
 			await ctx.settings.set("collections", picked.join(","));
-			return renderSettings(ctx, {
+			return renderSettings(ctx, routeCtx, {
 				message: picked.length ? "Content types saved." : "Reviews are closed. Tick a content type to open them.",
 				type: picked.length ? "success" : "info",
 			});
 		}
 		if (action === "save_moderation") {
 			await ctx.settings.set("require_moderation", asBoolean(values.require_moderation));
-			return renderSettings(ctx, { message: "Approval saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Approval saved.", type: "success" });
 		}
 		if (action === "save_who") {
 			const who = asString(values.who) === "members" ? "members" : "anyone";
@@ -583,22 +662,40 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			if ("ask_guest_email" in values) {
 				await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
 			}
-			return renderSettings(ctx, { message: "Who can review saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Who can review saved.", type: "success" });
 		}
 		if (action === "save_guest_email") {
 			await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
-			return renderSettings(ctx, { message: "Guest email saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Guest email saved.", type: "success" });
 		}
 		if (action === "save_notify") {
 			const to = asString(values.notify_to);
 			// No default address exists for a plugin to send to, so a switched-on notice needs one.
 			if (asBoolean(values.notify) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-				return renderSettings(ctx, { message: "Add the email address the notice should go to.", type: "error" });
+				return renderSettings(ctx, routeCtx, { message: "Add the email address the notice should go to.", type: "error" });
 			}
 			await ctx.settings.set("notify", asBoolean(values.notify));
 			await ctx.settings.set("notify_to", to);
-			return renderSettings(ctx, { message: "Email notice saved.", type: "success" });
+			if (!asBoolean(values.notify)) return renderSettings(ctx, routeCtx, { message: "Email notice turned off.", type: "success" });
+			// One short note to the owner's own address: the only way a sandboxed plugin learns whether the site can send mail.
+			const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
+			const sent = await sendMail(ctx, {
+				to,
+				subject: "Review notices are on",
+				text: `You will get at most one email an hour when reviews are waiting${site ? ` on ${site}` : ""}.`,
+			});
+			const toasts: Record<typeof sent, Toast> = {
+				sent: { message: `Email notice saved. A test notice went to ${to}.`, type: "success" },
+				none: { message: "Saved, but no notice will be sent: this site has no email provider.", type: "info" },
+				failed: { message: "Saved, but the test notice could not be sent. Check the site's email provider.", type: "error" },
+			};
+			return renderSettings(ctx, routeCtx, toasts[sent]);
 		}
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === KIT_DONE) {
+		await ctx.kv.set(KIT_DONE, true);
+		return renderList(ctx, { kind: "waiting", page: 1, q: "" }, { message: "Noted. The install guide stays linked here.", type: "success" });
 	}
 
 	if (type === "block_action" && asString(raw.action_id) === "page") {
@@ -674,7 +771,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 		});
 	}
 
-	return show(ctx, page, view);
+	return show(ctx, page, view, routeCtx);
 }
 
 export async function renderDashboard(ctx: PluginContext): Promise<BlockResponse> {

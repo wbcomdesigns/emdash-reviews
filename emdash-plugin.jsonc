@@ -36,7 +36,7 @@
 	"allowedHosts": [],
 	"storage": {
 		"reviews": {
-			"indexes": ["status", "entry", "member_id", "createdAt", "email"]
+			"indexes": ["status", "entry", "member_id", "createdAt", "email", "pending_change"]
 		},
 		"ratings": {
 			"indexes": ["collection"]

@@ -59,3 +59,23 @@ export type Row = Record<string, unknown> & { id: string };
 export function rows(result: { items: Array<{ id: string; data: unknown }> }): Row[] {
 	return result.items.map((item) => ({ ...asRecord(item.data), id: item.id }));
 }
+
+/**
+ * The address a guest is counted by, or null when the host gave none. An IPv6 visitor counts by
+ * the /64 network, so rotating addresses inside one network is still one guest.
+ */
+export function guestAddress(value: unknown): string | null {
+	const ip = asString(value).toLowerCase().replace(/%.*$/, "");
+	if (!ip || ip === "unknown") return null;
+	if (!ip.includes(":")) return ip;
+	const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+	if (mapped) return mapped[1];
+	const [head = "", tail = ""] = ip.split("::");
+	const left = head ? head.split(":") : [];
+	const right = ip.includes("::") && tail ? tail.split(":") : [];
+	const groups = ip.includes("::") ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right] : left;
+	return `${groups
+		.slice(0, 4)
+		.map((group) => (Number.parseInt(group, 16) || 0).toString(16))
+		.join(":")}::/64`;
+}

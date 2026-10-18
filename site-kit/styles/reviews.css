@@ -165,3 +165,8 @@
 	outline: 2px solid var(--wb-brand);
 	outline-offset: 2px;
 }
+
+/* The My reviews page column: the site sets the gutter, the kit keeps lines readable. */
+.wbr-page {
+	max-width: 40rem;
+}

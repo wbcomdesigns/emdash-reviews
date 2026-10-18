@@ -24,6 +24,8 @@ WB Reviews can send a short email when reviews are waiting.
 
 Your site must be able to send mail. EmDash has no mail sending of its own. Install an email plugin, such as the official Resend plugin, or no email goes out. The dashboard card works without one.
 
+When you save the **Email** tab with the notice on, WB Reviews sends one short test notice to your address. If the site has no email provider, Save says "Saved, but no notice will be sent: this site has no email provider." and the tab shows **This site has no email provider** until a send works.
+
 ### Reviewers get no email
 
-WB Reviews never emails the person who wrote a review. The only email it sends is this notice to you.
+WB Reviews never emails the person who wrote a review. The only emails it sends are this notice and the one test notice when you save the Email tab, both to you.

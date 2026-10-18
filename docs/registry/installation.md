@@ -1,26 +1,31 @@
-1. Install WB Reviews from the registry and confirm `content:read`, `schema:read` and `email:send`.
-2. Copy the site kit into your site. From the site root:
+## Before you install
 
-```bash
-K=path/to/emdash-reviews/site-kit
-mkdir -p src/lib src/styles src/components
-cp $K/lib/reviews-strings.ts src/lib/
-cp $K/styles/reviews.css src/styles/
-cp $K/components/Reviews.astro $K/components/RatingBadge.astro $K/components/MyReviews.astro src/components/
-mkdir -p src/pages/account
-cp $K/pages/account/reviews.astro src/pages/account/reviews.astro
-```
+**1. Your site needs a sandbox runner.** Registry plugins run in a sandbox. Until the site has one, Admin, Plugins shows "No plugins configured" and there is no Registry in the menu.
 
-Copy `lib/wbcom-kit.ts` and `styles/wbcom-base.css` only if your site has no copy or an older one (the number on line 1). The kit guide has a script that checks for you.
+- **Node:** in your site, run `npm install @emdash-cms/sandbox-workerd workerd`, then add `sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",` inside `emdash({ ... })` in `astro.config.mjs`.
+- **Cloudflare:** add `import { sandbox } from "@emdash-cms/cloudflare";` and `sandboxRunner: sandbox(),`. It needs the Workers Paid plan and a `worker_loaders` binding named `LOADER` in your Wrangler config. The EmDash Cloudflare templates ship that binding commented out. EmDash's guide: https://docs.emdashcms.com/deployment/plugin-sandbox/#cloudflare-workers
 
-3. Drop `<Reviews collection="posts" id={post.data.id} />` on the entry template, and `<RatingBadge collection="posts" id={post.data.id} />` on cards.
-4. Add a menu link **My reviews** to `/account/reviews/`. A member sees their reviews there. **Delete all my reviews** asks for a second click.
-5. Open Admin, Reviews, Settings. Tick the content types visitors can review. Save.
+Stop the dev server and start it again. **Registry** now shows in the admin menu.
 
-Optional: copy `site-kit/blocks/` to `src/reviews-block/` and add `reviewsBlock()` under `plugins` in `astro.config.mjs` to insert **Reviews** or **Rating** inside a post. The install guide has the lines. The registry plugin works without that.
+**2. The plugin is the engine. Visitor pages come from its site kit.** A registry plugin cannot add pages to your site. Until you copy the kit, its addresses (for example `/account/reviews/`) show your site's 404 page. That is expected. The kit copy below takes one command.
 
-Guest reviews are still removed by an admin: Admin, Reviews, Published, find by email.
+**3. You need Node 22.16 or later** for the `npx emdash seed` step. WB Reviews has no seed step.
 
-Your site needs a sandbox runner in `astro.config.mjs`. Without one, EmDash skips sandboxed plugins at startup.
+Checked on EmDash 1.3.0 with the `blog` template, Node and Cloudflare.
 
-Full steps: https://github.com/wbcomdesigns/emdash-reviews/blob/main/site-kit/README.md
+## Install
+
+1. Admin, Registry, search **WB Reviews**, Install, then accept the permissions.
+2. From your site's root folder:
+
+   ```bash
+   kit="$(mktemp -d)" && git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .
+   ```
+
+3. Paste the lines it printed into the post page and post card it names. Restart the dev server.
+4. Add the My reviews link it printed in Admin, Menus.
+5. Open Reviews, Waiting and follow its first screen.
+
+After every update, run step 2 with the new tag.
+
+Full guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.2.1/docs/website/getting-started/install.md

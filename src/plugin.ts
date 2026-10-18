@@ -3,26 +3,29 @@ import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
 import { handleAdmin } from "./admin";
 import {
 	allowedCollections,
+	allReviews,
 	entryKey,
-	entryRef,
 	entryRefs,
+	GUEST_UNAVAILABLE,
+	isPublished,
 	MEMBER,
 	MEMBERS_ONLY,
 	rateLimited,
 	RATE_LIMITED,
+	reviewable,
+	sendMail,
 	SIGN_IN,
 	syncRating,
 	waitingCount,
 	type Member,
 } from "./core";
-import { asNumber, asRecord, asString, nowIso, plainText, rows } from "./util";
+import { asNumber, asRecord, asString, guestAddress, nowIso, plainText, rows } from "./util";
 
 // Short enough that the moderation table can show every character an admin approves.
 const TITLE_MAX = 120;
 const BODY_MAX = 1000;
 const NAME_MAX = 80;
 const LIST_PAGE = 10;
-const LIST_SCAN = 500;
 const NOTIFY_CRON = "0 * * * *";
 
 const NOT_REVIEWABLE = {
@@ -41,11 +44,6 @@ function target(input: unknown): { collection: string; id: string } | null {
 	const collection = asString(raw.collection);
 	const id = asString(raw.id);
 	return collection && id ? { collection, id } : null;
-}
-
-async function reviewable(ctx: PluginContext, collection: string, id: string): Promise<boolean> {
-	if (!(await allowedCollections(ctx)).includes(collection)) return false;
-	return (await entryRef(ctx, collection, id))?.published === true;
 }
 
 function clampStars(value: unknown): number | null {
@@ -71,20 +69,16 @@ async function visitorSalt(ctx: PluginContext): Promise<string> {
 	return salt;
 }
 
-/** One guest identity per trusted address, or per browser cookie when the host has none. */
-async function guestWho(
-	ctx: PluginContext,
-	routeCtx: { requestMeta?: { ip?: string | null } },
-	raw: Record<string, unknown>,
-): Promise<{ id: string; visitor: string }> {
-	const salt = await visitorSalt(ctx);
-	const ip = asString(routeCtx.requestMeta?.ip);
-	if (ip && ip !== "unknown") {
-		const visitor = await sha256Hex(`${salt}:${ip}`);
-		return { id: `v-${visitor}`, visitor };
-	}
-	const token = asString(raw.visitor) || crypto.randomUUID();
-	const visitor = await sha256Hex(`${salt}:c:${token}`);
+type Meta = { requestMeta?: { ip?: string | null } };
+
+/** The visitor address EmDash passed in, or null. Only Cloudflare, or a site with trustedProxyHeaders, passes one. */
+function visitorAddress(routeCtx: Meta): string | null {
+	return guestAddress(routeCtx.requestMeta?.ip);
+}
+
+/** One guest per visitor address (an IPv6 /64), hashed with a per-site salt. Never the address itself. */
+async function guestWho(ctx: PluginContext, address: string): Promise<{ id: string; visitor: string }> {
+	const visitor = await sha256Hex(`${await visitorSalt(ctx)}:${address}`);
 	return { id: `v-${visitor}`, visitor };
 }
 
@@ -164,19 +158,15 @@ function publicItem(row: Record<string, unknown>) {
 async function notifyWaiting(ctx: PluginContext): Promise<void> {
 	if ((await ctx.settings.get<boolean>("notify")) !== true) return;
 	if (!(await waitingCount(ctx))) return;
-	if (!ctx.email) return;
 	const to = asString(await ctx.settings.get<string>("notify_to"));
 	if (!to.includes("@")) return;
 	const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
-	try {
-		await ctx.email.send({
-			to,
-			subject: "Reviews are waiting",
-			text: `Reviews are waiting for approval${site ? ` on ${site}` : ""}.\n\nSign in to your site admin and open Reviews, then Waiting.`,
-		});
-	} catch {
-		// Tried this hour. The next run tries again.
-	}
+	// A failed send is tried again next hour; "no provider" is remembered so Settings can say so.
+	await sendMail(ctx, {
+		to,
+		subject: "Reviews are waiting",
+		text: `Reviews are waiting for approval${site ? ` on ${site}` : ""}.\n\nSign in to your site admin and open Reviews, then Waiting.`,
+	});
 }
 
 const plugin: SandboxedPlugin = {
@@ -223,15 +213,19 @@ const plugin: SandboxedPlugin = {
 	routes: {
 		health: {
 			public: true,
-			handler: async (_routeCtx, ctx) => ({
-				ok: true,
-				plugin: ctx.plugin.id,
-				version: ctx.plugin.version,
-				collections: await allowedCollections(ctx),
-				pending: await waitingCount(ctx),
-				who: whoSetting(await ctx.settings.get<string>("who")),
-				askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
-			}),
+			handler: async (routeCtx, ctx) => {
+				const who = whoSetting(await ctx.settings.get<string>("who"));
+				return {
+					ok: true,
+					plugin: ctx.plugin.id,
+					version: ctx.plugin.version,
+					collections: await allowedCollections(ctx),
+					who,
+					// False when guests cannot write here: members only, or the host gives no visitor address.
+					guestWrites: who === "anyone" && visitorAddress(routeCtx as Meta) !== null,
+					askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
+				};
+			},
 		},
 		// Published reviews for one entry, with its rating, bars, and one page of text reviews.
 		list: {
@@ -239,17 +233,18 @@ const plugin: SandboxedPlugin = {
 			methods: ["GET"],
 			handler: async (routeCtx, ctx) => {
 				const at = target(routeCtx.input);
-				if (!at) return { ok: true, items: [], average: 0, count: 0, total: 0, page: 1, sort: "newest", bars: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+				if (!at || !(await reviewable(ctx, at.collection, at.id))) {
+					return { ok: true, items: [], average: 0, count: 0, total: 0, page: 1, pages: 1, sort: "newest", bars: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+				}
 				const raw = asRecord(routeCtx.input);
 				const sortRaw = asString(raw.sort);
 				const sort = sortRaw === "highest" || sortRaw === "lowest" ? sortRaw : "newest";
 				const page = Math.max(1, asNumber(raw.page) ?? 1);
 				const entry = entryKey(at.collection, at.id);
-				const [found, rating] = await Promise.all([
-					ctx.storage.reviews.query({ where: { entry }, orderBy: { createdAt: "desc" }, limit: LIST_SCAN }),
+				const [published, rating] = await Promise.all([
+					allReviews(ctx, { entry, status: "published" }, { createdAt: "desc" }),
 					ctx.storage.ratings.get(entry),
 				]);
-				const published = rows(found).filter((row) => row.status === "published");
 				const bars = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 				for (const row of published) {
 					const stars = clampStars(row.stars);
@@ -288,18 +283,21 @@ const plugin: SandboxedPlugin = {
 			handler: async (routeCtx, ctx) => {
 				const raw = asRecord(routeCtx.input);
 				const collection = asString(raw.collection);
+				const ratings: Record<string, { average: number; count: number }> = {};
+				if (!(await allowedCollections(ctx)).includes(collection)) return { ok: true, ratings };
 				const ids = asString(raw.ids)
 					.split(",")
 					.map((id) => id.trim())
 					.filter(Boolean)
 					.slice(0, 50);
 				const found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
-				const ratings: Record<string, { average: number; count: number }> = {};
-				ids.forEach((id, index) => {
-					const row = asRecord(found[index]);
-					if (asNumber(row.count)) {
-						ratings[id] = { average: asNumber(row.average) ?? 0, count: asNumber(row.count) ?? 0 };
-					}
+				const rated = ids.filter((id, index) => asNumber(asRecord(found[index]).count));
+				// One content read per rated card (50 at most), so a draft or unpublished entry shows no badge.
+				const live = await Promise.all(rated.map((id) => isPublished(ctx, collection, id)));
+				rated.forEach((id, index) => {
+					if (!live[index]) return;
+					const row = asRecord(found[ids.indexOf(id)]);
+					ratings[id] = { average: asNumber(row.average) ?? 0, count: asNumber(row.count) ?? 0 };
 				});
 				return { ok: true, ratings };
 			},
@@ -338,6 +336,10 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			handler: async (routeCtx, ctx) => {
 				if (whoSetting(await ctx.settings.get<string>("who")) === "members") return MEMBERS_ONLY;
+				// Owner decision 2026-10-16: with no visitor address there is no working per-guest limit,
+				// so guests are asked to sign in. Never fall back to a browser-sent id or a shared bucket.
+				const address = visitorAddress(routeCtx as Meta);
+				if (!address) return GUEST_UNAVAILABLE;
 				const at = target(routeCtx.input);
 				if (!at) return NOT_REVIEWABLE;
 				const raw = asRecord(routeCtx.input);
@@ -350,7 +352,7 @@ const plugin: SandboxedPlugin = {
 				if (!(await reviewable(ctx, at.collection, at.id))) return NOT_REVIEWABLE;
 				const stars = clampStars(raw.stars);
 				if (stars === null) return NEED_STARS;
-				const guest = await guestWho(ctx, { requestMeta: routeCtx.requestMeta as { ip?: string | null } | undefined }, raw);
+				const guest = await guestWho(ctx, address);
 				if (await rateLimited(ctx, `write:${guest.id}`)) return RATE_LIMITED;
 				return saveReview(ctx, {
 					entry: entryKey(at.collection, at.id),
@@ -390,7 +392,7 @@ const plugin: SandboxedPlugin = {
 					for (const entry of entries) await syncRating(ctx, entry);
 					return { ok: true, erased };
 				}
-				const found = await ctx.storage.reviews.query({ where: { member_id: user.id }, limit: 100 });
+				const found = await ctx.storage.reviews.query({ where: { member_id: user.id }, orderBy: { createdAt: "desc" }, limit: 100 });
 				const mine = rows(found);
 				const refs = await entryRefs(ctx, mine);
 				return {
@@ -412,7 +414,7 @@ const plugin: SandboxedPlugin = {
 			},
 		},
 		admin: {
-			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx, routeCtx),
+			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx, routeCtx as Parameters<typeof handleAdmin>[2]),
 		},
 	},
 };

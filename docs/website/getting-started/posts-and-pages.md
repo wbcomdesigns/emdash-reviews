@@ -44,25 +44,21 @@ Pages also need to be ticked in the plugin. Open **Reviews**, then **Settings**,
 
 ## The rating badge on post cards
 
-On the blog template, post cards are drawn by `src/components/PostCard.astro`. The card is not given the post's id, so the badge needs three small changes:
+On the blog template, post cards are drawn by `src/components/PostCard.astro`, which is given the whole entry as `post`. `scripts/add-to-site.sh` prints these two lines for it:
 
-1. In `src/components/PostCard.astro`, add `id?: string;` to `interface Props`, add `id` to the list read from `Astro.props`, and add the import:
+1. Add the import with the other imports at the top of `src/components/PostCard.astro`:
 
    ```astro
    import RatingBadge from "./RatingBadge.astro";
    ```
 
-2. In the same file, place the badge where the card should show it, for example under the title:
+2. In the same file, place the badge where the card should show it, for example after the `post__meta` line:
 
    ```astro
-   {id ? <RatingBadge collection="posts" id={id} /> : null}
+   <RatingBadge collection="posts" id={post.data.id} />
    ```
 
-3. Where the card is used, pass the entry id. On the blog template that is `src/pages/index.astro`, `src/pages/category/[slug].astro`, `src/pages/tag/[slug].astro` and the related posts in `src/pages/posts/[slug].astro`:
-
-   ```astro
-   <PostCard id={post.data.id} ... />
-   ```
+Checked on EmDash 1.3.0. An older blog template that passes the card only some fields needs the entry id passed in as a prop instead.
 
 A badge shows nothing for a post with no rating, so it is safe on every card. Many badges on one page load with one request.
 

@@ -10,7 +10,8 @@ This file is the contract for the plugin. Code, tests, docs and cards all follow
 
 - **Not the same as core comments.** EmDash has comments built in. Reviews adds what comments do not have: a star rating, one entry per person per page, an average with a count, the bar breakdown, an owner reply, and rating data for search engines. Do not build threads, replies between visitors, or anything comments already do.
 - **Owner alert:** a card on the EmDash dashboard (`admin.widgets`) shows what is waiting and links to it. That is the alert on every site. The hourly email is an extra, sent only where the site has mail; the setup guide names the official Resend plugin.
-- **Visitors first:** a visitor is never locked out by hosting. Trusted visitor address where EmDash supplies it, browser cookie otherwise, written content always approved first.
+- **Guests need a visitor address (owner decision 2026-10-16, replaces the cookie fallback).** EmDash passes the visitor address only on Cloudflare or where the site sets `trustedProxyHeaders`. Without it there is no working per-guest limit, so `write_guest` answers `GUEST_UNAVAILABLE` and stores nothing, `health` says `guestWrites: false`, the kit shows the sign-in link, and Settings says so in one line. IPv6 guests count by their /64. Members are not affected.
+- **Lists read only the status they show (0.2.1).** Every review read filters by status in the query and pages through all rows, so waiting reviews can never push published ones out of the list or the rating.
 - **Member account list (`<My...>`):** not in 0.1.0. Moved to 0.2.0. The erase-by-person function stays, as an admin action.
 - **Block inside post text:** only with a trusted install. The registry install is the whole product without it.
 - **Admin pages:** Waiting, Published, Settings, plus the dashboard card. Content types are tick-boxes (`schema:read`).
@@ -49,7 +50,7 @@ How it stays general:
 - No assumption about what is being reviewed: the wording says "review", never "product" or "article"
 - Every visitor-facing word is in one wording file, so a non-English site or a site with its own vocabulary changes it in one place
 
-**Decided by the owner on 2026-10-13: the site owner chooses who can take part.** One setting: signed-in members only, or anyone. For a guest: one entry per visitor, identified by a salted hash of the IP (never the IP itself, never a cookie the visitor can clear to vote again within the hour limit), an hourly limit per visitor, a honeypot field on every guest form, and written content always held for approval. Guests have no account, so they have no "My ..." list and cannot erase their entries themselves; the owner removes them in admin. If the host supplies no trusted visitor address, fall back to a browser cookie (one entry per browser), keep written content waiting for approval, and say on the admin page that protection is weaker on this hosting. A visitor is never locked out by hosting (owner direction 2026-10-13: visitors first, about nine in ten EmDash sites have visitors only). Member routes stay private routes using `routeCtx.user`. Guest routes are separate public routes: never merge the two paths.
+**Decided by the owner on 2026-10-13: the site owner chooses who can take part.** One setting: signed-in members only, or anyone. For a guest: one entry per visitor, identified by a salted hash of the IP (never the IP itself, never a cookie the visitor can clear to vote again within the hour limit), an hourly limit per visitor, a honeypot field on every guest form, and written content always held for approval. Guests have no account, so they have no "My ..." list and cannot erase their entries themselves; the owner removes them in admin. If the host supplies no visitor address, guests are asked to sign in (owner decision 2026-10-16; the 2026-10-13 cookie fallback is withdrawn because it had no working limit). Member routes stay private routes using `routeCtx.user`. Guest routes are separate public routes: never merge the two paths.
 
 ## Decisions made with the owner
 
@@ -98,7 +99,7 @@ Do not build these. If a card seems to need one, stop and ask the owner.
 - Importing reviews from other platforms
 - Verified-buyer badges
 - Any paid or Pro feature
-- Email to reviewers or to anyone but the site admin. The one email this plugin sends is the hourly "reviews are waiting" notice, and only when the site has mail set up
+- Email to reviewers or to anyone but the site admin. The one email this plugin sends is the hourly "reviews are waiting" notice, and only when the site has mail set up. Saving the Email tab with the notice on also sends one test notice to that same owner address (0.2.1): a sandboxed plugin can only learn whether the site has a mail provider by sending, and Settings must say plainly when it has none
 - A Report link on reviews
 - Portable Text blocks or anything that needs a native plugin
 - Injecting scripts, styles or HTML into pages from the plugin
@@ -174,12 +175,12 @@ Base: `/_emdash/api/plugins/<id>/<name>`. On a registry install `<id>` is `r_nt2
 
 | Route | Who | Methods | Input | Returns |
 | --- | --- | --- | --- | --- |
-| `health` | public | GET | - | `ok`, version, open collections, pending count |
+| `health` | public | GET | - | `ok`, version, open collections, `who`, `guestWrites`, `askEmail`. No waiting count |
 | `list` | public | GET | `collection`, `id`, `page`, `sort` (newest, highest, lowest). 10 per page, with `total` and the count per star level | Published reviews (author, stars, title, body, createdAt), `average`, `count`. Includes `owner_reply`. Star-only ratings are counted, not listed |
 | `summary` | public | GET | `collection`, `ids` (comma list, 50 max) | `ratings` map of id to `{average, count}` |
 | `write` | member | POST | `collection`, `id`, `stars`, `title`, `body` | `status`: pending or published |
 | `mine` | member | GET, DELETE | - | GET: own reviews with page title and link. DELETE: erase all own reviews |
-| `write_guest` | public | POST | `collection`, `id`, `stars`, `title`, `body`, `name`, honeypot field | `status`: always pending. Refused when the setting is members |
+| `write_guest` | public | POST | `collection`, `id`, `stars`, `title`, `body`, `name`, honeypot field | `status`: always pending. Refused when the setting is members, and with `GUEST_UNAVAILABLE` when EmDash passes no visitor address |
 | `admin` | admin | POST | Block Kit | Queue, published list, settings |
 
 `member` means a private route with `permission: MEMBER`. `admin` means a private route with no permission set. A `public` route never receives a user.

@@ -110,20 +110,11 @@ const zone = (await getSiteSettings())?.timezone || "";
 	type Result = { ok: boolean; status?: string; error?: { code?: string } };
 	type Bars = Record<string, number>;
 
-	function visitorToken(): string {
-		const key = "wbr_vid";
-		const found = document.cookie.split("; ").find((part) => part.startsWith(`${key}=`));
-		if (found) return decodeURIComponent(found.slice(key.length + 1));
-		const token = crypto.randomUUID();
-		document.cookie = `${key}=${encodeURIComponent(token)}; path=/; max-age=31536000; samesite=lax`;
-		return token;
-	}
-
 	function tell(box: HTMLElement, result: Result, success: string) {
 		box.hidden = false;
 		box.dataset.tone = result.ok ? "success" : "error";
 		if (result.ok) box.textContent = success;
-		else if (result.error?.code === "SIGN_IN_REQUIRED" || result.error?.code === "MEMBERS_ONLY") {
+		else if (["SIGN_IN_REQUIRED", "MEMBERS_ONLY", "GUEST_UNAVAILABLE"].includes(result.error?.code ?? "")) {
 			box.innerHTML = `${esc(S.signIn)} <a href="${esc(signInUrl())}">${esc(S.signInLink)}</a>`;
 		} else box.textContent = phrase(result.error?.code);
 	}
@@ -197,19 +188,24 @@ const zone = (await getSiteSettings())?.timezone || "";
 			return;
 		}
 		const anyone = health.who !== "members";
-		// Pages are cached the same for everyone, so ask a member route: a 401 means a guest.
+		// Guests can write only where the host passes EmDash the visitor's address (health says so).
+		const guestsWrite = anyone && health.guestWrites !== false;
+		// Pages are cached the same for everyone, so ask a member route. A guest gets a 401 here,
+		// shown in the browser console; that is expected and the page is fine.
 		const signedIn = Boolean((await api("reviews", "mine")).ok);
-		const canWrite = signedIn || anyone;
+		const canWrite = signedIn || guestsWrite;
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
 		const signInBox = root.querySelector<HTMLElement>("[data-wbr-signin]");
 		const signInLink = signInBox?.querySelector("a");
 		if (signInLink) signInLink.href = signInUrl();
+		const signInText = signInBox?.querySelector("strong");
+		if (signInText) signInText.textContent = anyone ? S.signInGuest : S.signInWrite;
 		if (form) form.hidden = !canWrite;
 		if (signInBox) signInBox.hidden = canWrite;
 		// A signed-in member writes as their account: no name or email boxes.
-		if (guestBox) guestBox.hidden = signedIn || !anyone;
-		if (emailBox) emailBox.hidden = signedIn || !anyone || health.askEmail !== true;
-		if (help) help.textContent = anyone || signedIn ? S.bodyHelp : S.bodyHelpMembers;
+		if (guestBox) guestBox.hidden = signedIn || !guestsWrite;
+		if (emailBox) emailBox.hidden = signedIn || !guestsWrite || health.askEmail !== true;
+		if (help) help.textContent = guestsWrite || signedIn ? S.bodyHelp : S.bodyHelpMembers;
 
 		const load = async (nextPage = 1, append = false) => {
 			const where = `collection=${encodeURIComponent(collection)}&id=${encodeURIComponent(id)}&page=${nextPage}&sort=${encodeURIComponent(sort?.value || "newest")}`;
@@ -259,7 +255,6 @@ const zone = (await getSiteSettings())?.timezone || "";
 				name: String(fields.get("name") ?? ""),
 				email: String(fields.get("email") ?? ""),
 				website: String(fields.get("website") ?? ""),
-				visitor: visitorToken(),
 			};
 			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
 			button?.setAttribute("aria-busy", "true");

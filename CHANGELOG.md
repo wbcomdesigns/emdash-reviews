@@ -2,6 +2,23 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.2.1]
+
+Guests now need a visitor address from the host. Copy the kit again after you update.
+
+- Security - Guests can review only where the host passes EmDash the visitor's address (Cloudflare, or trustedProxyHeaders); elsewhere guests are asked to sign in.
+- Security - IPv6 guests count by their /64 network, so rotating addresses no longer gets around the hourly limit.
+- Security - The public health route no longer shows how many reviews are waiting.
+- New      - The Waiting screen shows Set up visitor pages, with the kit command for the installed version, until you mark them done.
+- New      - One command, scripts/add-to-site.sh, copies the kit and prints the lines to paste with their file names.
+- Improve  - Settings says plainly when the site has no email provider, and saving the Email tab sends one test notice.
+- Improve  - My reviews uses the site's own page column and gutter through src/layouts/ReviewsLayout.astro.
+- Improve  - A guest on My reviews sees a plain sign-in prompt instead of a red error.
+- Fix      - Published reviews and the rating stay right however many reviews are waiting, and pages with over 500 reviews count them all.
+- Fix      - The review list and the rating badge show nothing for an unpublished page or a closed content type.
+- Fix      - Install snippets name the file to edit and use the import path that works from it.
+- Compat   - Checked on EmDash 1.3.0. Shared kit styles 4: buttons use the theme's own colours in dark mode.
+
 ## [0.2.0]
 
 Copy the kit again after you update.

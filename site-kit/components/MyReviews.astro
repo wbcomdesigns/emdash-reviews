@@ -40,7 +40,15 @@ import { mine as S } from "../lib/reviews-strings";
 		const status = root.querySelector<HTMLElement>("[data-wbr-mine-status]")!;
 
 		const load = async () => {
+			// A guest gets a 401 here (shown in the browser console). That is expected: it means "not signed in".
 			const data = await api("reviews", "mine");
+			if (!data.ok && data.error?.code === "SIGN_IN_REQUIRED") {
+				// Not an error: a plain prompt in the same box as the empty state.
+				actions.hidden = true;
+				status.hidden = true;
+				list.innerHTML = `<div class="wb-empty"><p><strong>${esc(S.signInTitle)}</strong></p><p><a href="${esc(signInUrl())}">${esc(reviews.signInLink)}</a></p></div>`;
+				return;
+			}
 			if (!data.ok) {
 				list.innerHTML = "";
 				tell(status, data, "");

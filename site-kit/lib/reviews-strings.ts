@@ -34,6 +34,7 @@ export const reviews = {
 	signIn: "Sign in to continue.",
 	signInLink: "Sign in",
 	signInWrite: "Only members can review this page.",
+	signInGuest: "Sign in to write a review.",
 	needStars: "Choose a rating.",
 	closed: "Reviews are not open for that page.",
 	rateLimited: "Too many requests. Try again in an hour.",
@@ -58,6 +59,7 @@ export const mine = {
 	loading: "Loading your reviews…",
 	emptyTitle: "You have not reviewed anything yet.",
 	emptyHint: "Reviews you write show here with their status.",
+	signInTitle: "Sign in to see the reviews you have written.",
 	erase: "Delete all my reviews",
 	eraseAgain: "Click again to delete them for good",
 	erased: "Your reviews were deleted.",
@@ -70,6 +72,7 @@ export const mine = {
 const CODES: Record<string, string> = {
 	SIGN_IN_REQUIRED: reviews.signIn,
 	MEMBERS_ONLY: reviews.signIn,
+	GUEST_UNAVAILABLE: reviews.signInGuest,
 	VALIDATION_ERROR: reviews.needText,
 	NEED_STARS: reviews.needStars,
 	NEED_NAME: reviews.needName,
