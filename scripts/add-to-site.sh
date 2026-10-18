@@ -23,7 +23,10 @@ mkdir -p "$SITE/src/lib" "$SITE/src/styles" "$SITE/src/components" "$SITE/src/la
 shared_version() { local v; v="$(sed -n '1s/.*wbcom-shared: *\([0-9]*\).*/\1/p' "$1" 2>/dev/null)"; echo "${v:-0}"; }
 for part in lib/wbcom-kit.ts styles/wbcom-base.css; do
 	target="$SITE/src/$part"
-	if [[ ! -f "$target" ]] || (($(shared_version "$KIT/$part") > $(shared_version "$target"))); then
+	if [[ ! -f "$target" ]]; then
+		cp "$KIT/$part" "$target"
+	elif (($(shared_version "$KIT/$part") > $(shared_version "$target"))); then
+		notes+=("Updated src/$part from wbcom-shared $(shared_version "$target") to $(shared_version "$KIT/$part") (shared with other Wbcom plugins; newer copies only add).")
 		cp "$KIT/$part" "$target"
 	elif (($(shared_version "$KIT/$part") < $(shared_version "$target"))); then
 		notes+=("Kept src/$part: the site has a newer copy (another Wbcom plugin put it there).")

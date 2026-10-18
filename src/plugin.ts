@@ -219,15 +219,20 @@ const plugin: SandboxedPlugin = {
 		health: {
 			public: true,
 			handler: async (routeCtx, ctx) => {
-				const who = whoSetting(await ctx.settings.get<string>("who"));
+				const setting = whoSetting(await ctx.settings.get<string>("who"));
+				const hostAddress = visitorAddress(routeCtx as Meta) !== null;
+				const guestWrites = setting === "anyone" && hostAddress;
 				return {
 					ok: true,
 					plugin: ctx.plugin.id,
 					version: ctx.plugin.version,
 					collections: await allowedCollections(ctx),
-					who,
-					// False when guests cannot write here: members only, or the host gives no visitor address.
-					guestWrites: who === "anyone" && visitorAddress(routeCtx as Meta) !== null,
+					// Who can write on this request. "members" also when the host gives no visitor address, so a
+					// kit from 0.2.0 (which knows only this field) shows its sign-in line instead of a form that fails.
+					who: guestWrites ? "anyone" : "members",
+					guestWrites,
+					// False when the host passes EmDash no visitor address: the kit then says "Sign in to write a review."
+					hostAddress,
 					askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
 				};
 			},

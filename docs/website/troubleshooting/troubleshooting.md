@@ -17,7 +17,7 @@ Check these in order:
 
 ## Guests see "Sign in to write a review." instead of the form
 
-**Who can leave a review** is **Anyone**, but your host does not pass the visitor's address to EmDash. Without it the plugin cannot limit each guest, so guests are asked to sign in and members review as normal. Settings shows **Guests are asked to sign in on this hosting**. Fix it on the host: Cloudflare passes the address, or set `trustedProxyHeaders` in `astro.config.mjs`. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
+**Who can leave a review** is **Anyone**, but your host does not pass the visitor's address to EmDash. Without it the plugin cannot limit each guest, so guests are asked to sign in and members review as normal. Settings shows **Guests are asked to sign in on this hosting**. Fix it on the host: Cloudflare passes the address; behind your own proxy, set `trustedProxyHeaders` to a header the proxy overwrites (for nginx, `x-real-ip`), never one it appends to. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
 
 ## The email notice never arrives
 

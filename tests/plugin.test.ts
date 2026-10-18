@@ -589,7 +589,7 @@ describe("guest write", () => {
 		const listed = await call("list", { collection: "posts", id: live }, { method: "GET" });
 		expect(JSON.stringify(listed)).not.toContain("sam@example.com");
 		const health = await call("health", {}, { method: "GET" });
-		expect(health).toMatchObject({ askEmail: true, who: "anyone", collections: ["posts"] });
+		expect(health).toMatchObject({ askEmail: true, collections: ["posts"] });
 		expect(JSON.stringify(health)).not.toContain("sam@example.com");
 	});
 });

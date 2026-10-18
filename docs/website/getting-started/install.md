@@ -96,16 +96,18 @@ The first Reviews screen, **Waiting**, shows **Set up visitor pages** with the c
 
 ## Guests and hosting
 
-Guests can review only where the host tells EmDash the visitor's address. EmDash gets it on Cloudflare, or on any host where the site lists the proxy header in `astro.config.mjs`:
+EmDash gives a plugin the visitor's address only on Cloudflare, or when the site sets `trustedProxyHeaders` in `astro.config.mjs`. Without an address, guests are asked to sign in before they can write a review, so one person cannot review many times.
+
+Set `trustedProxyHeaders` only to a header that **your proxy writes itself and replaces** on every request. EmDash reads the first address in that header. Many proxies **add** to `X-Forwarded-For` instead of replacing it (nginx `$proxy_add_x_forwarded_for`, most load balancers), so the first address is whatever the visitor typed, and a guest could review again and again. Behind nginx, set `proxy_set_header X-Real-IP $remote_addr;` and use `trustedProxyHeaders: ["x-real-ip"]`. Behind another proxy, use the header it overwrites with the connecting address. If you are not sure, leave it unset: members can still take part.
 
 ```js
 emdash({
-	trustedProxyHeaders: ["x-forwarded-for"],
+	trustedProxyHeaders: ["x-real-ip"],
 	// sandboxRunner and the rest stay as they are
 });
 ```
 
-Use the header your host or proxy actually sets. Without an address the plugin cannot limit each guest, so guests see **Sign in to write a review.** instead of the form, members review as normal, and Settings shows **Guests are asked to sign in on this hosting**. The address itself is never stored: a guest is a salted hash of it, and an IPv6 visitor counts by their /64 network.
+Without an address, guests see **Sign in to write a review.** instead of the form, members review as normal, and Settings shows **Guests are asked to sign in on this hosting**. The address itself is never stored: a guest is a salted hash of it, and an IPv6 visitor counts by their /64 network.
 
 ## In the browser console
 

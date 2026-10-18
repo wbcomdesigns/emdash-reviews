@@ -43,7 +43,13 @@ grep -q '^       kit="$(mktemp -d)" &&$' <<<"$out" || fail "update command line 
 grep -qE '^         git clone --branch v[0-9.]+ --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" &&$' <<<"$out" || fail "update command line 2"
 grep -q '^         "$kit/emdash-reviews/scripts/add-to-site.sh" .$' <<<"$out" || fail "update command line 3"
 
+# An older shared file another plugin copied is upgraded, and the script says so with both numbers.
+new_site shared
+mkdir -p "$site/src/styles"; printf '/* wbcom-shared: 2 */\n' > "$site/src/styles/wbcom-base.css"
+out="$("$SCRIPT" "$site")"
+[[ "$out" == *"Updated src/styles/wbcom-base.css from wbcom-shared 2 to 4"* ]] || fail "no line about the upgraded shared file"
+
 # A folder that is not an EmDash site is refused.
 mkdir -p "$work/plain"
 "$SCRIPT" "$work/plain" >/dev/null 2>&1 && fail "accepted a folder that is not an EmDash site"
-echo "add-to-site.sh: 5 checks passed"
+echo "add-to-site.sh: 6 checks passed"

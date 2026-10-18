@@ -5,6 +5,14 @@
 - Improve: Settings says when the site has no email provider. My reviews uses the site's gutter; guests see a plain sign-in prompt.
 - Fix: waiting reviews no longer hide published ones or break the rating; unpublished pages show nothing.
 
+Copy the kit again after you update, from your site's root folder:
+
+```bash
+kit="$(mktemp -d)" &&
+  git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+  "$kit/emdash-reviews/scripts/add-to-site.sh" .
+```
+
 ## 0.2.0
 
 - New: My reviews page where a member sees and deletes their reviews. Optional Reviews and Rating blocks for post text (trusted install).
@@ -19,12 +27,5 @@
 - Improve: Settings uses tabs, one Save each. Guest email only when Anyone can review.
 - Improve: Waiting and Published open with stats. Long text is clipped; Read shows the full review.
 - Improve: Delete-by-email is in an accordion. The dashboard card is a count and a link.
-
-## 0.1.3
-
-- Fix: stars-only ratings no longer keep the "Be the first" empty box.
-- Fix: no preselected rating. Guests post to write_guest first.
-- Fix: members-only shows a sign-in link instead of the form.
-- Fix: review cards keep kit spacing. Waiting wraps a long word.
 
 Older versions: https://github.com/wbcomdesigns/emdash-reviews/blob/main/CHANGELOG.md

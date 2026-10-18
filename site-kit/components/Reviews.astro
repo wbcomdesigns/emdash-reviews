@@ -197,9 +197,9 @@ const zone = (await getSiteSettings())?.timezone || "";
 			root.hidden = true;
 			return;
 		}
-		const anyone = health.who !== "members";
-		// Guests can write only where the host passes EmDash the visitor's address (health says so).
-		const guestsWrite = anyone && health.guestWrites !== false;
+		// Guests can write only where the host passes EmDash the visitor's address. A 0.2.0 engine has no
+		// guestWrites field; its "who" answer is then the whole story.
+		const guestsWrite = health.guestWrites === undefined ? health.who !== "members" : health.guestWrites === true;
 		const signedIn = await signedInCheck;
 		const canWrite = signedIn || guestsWrite;
 		const form = root.querySelector<HTMLFormElement>("[data-wbr-form]");
@@ -207,7 +207,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const signInLink = signInBox?.querySelector("a");
 		if (signInLink) signInLink.href = signInUrl();
 		const signInText = signInBox?.querySelector("strong");
-		if (signInText) signInText.textContent = anyone ? S.signInGuest : S.signInWrite;
+		if (signInText) signInText.textContent = health.hostAddress === false ? S.signInGuest : S.signInWrite;
 		if (form) form.hidden = !canWrite;
 		if (signInBox) signInBox.hidden = canWrite;
 		// A signed-in member writes as their account: no name or email boxes.

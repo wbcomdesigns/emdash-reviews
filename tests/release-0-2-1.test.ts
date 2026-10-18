@@ -34,10 +34,11 @@ describe("guests need a visitor address (owner decision 2026-10-16)", () => {
 
 	it("tells the kit whether guests can write here", async () => {
 		const { call } = await site();
-		expect(await call("health", {}, fromIp(null, "GET"))).toMatchObject({ who: "anyone", guestWrites: false });
-		expect(await call("health", {}, fromIp("198.51.100.7", "GET"))).toMatchObject({ who: "anyone", guestWrites: true });
+		// "who" is what applies on this request, so a 0.2.0 kit (which reads only "who") shows its sign-in line.
+		expect(await call("health", {}, fromIp(null, "GET"))).toMatchObject({ who: "members", guestWrites: false, hostAddress: false });
+		expect(await call("health", {}, fromIp("198.51.100.7", "GET"))).toMatchObject({ who: "anyone", guestWrites: true, hostAddress: true });
 		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "members" }, page: "/settings" });
-		expect(await call("health", {}, fromIp("198.51.100.7", "GET"))).toMatchObject({ who: "members", guestWrites: false });
+		expect(await call("health", {}, fromIp("198.51.100.7", "GET"))).toMatchObject({ who: "members", guestWrites: false, hostAddress: true });
 	});
 
 	it("lets an IPv4 guest write and limits that guest", async () => {
