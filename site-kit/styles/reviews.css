@@ -170,3 +170,11 @@
 .wbr-page {
 	max-width: 40rem;
 }
+
+/* Space the reviews from the text above, the way the blog template spaces its Discussion
+   section; the spacing tokens fall back for themes that do not define them. */
+.wb[data-wbr] {
+	margin-block-start: var(--spacing-16, 4rem);
+	padding-block-start: var(--spacing-10, 2.5rem);
+	border-block-start: 1px solid var(--wb-border);
+}

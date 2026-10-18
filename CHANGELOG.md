@@ -14,6 +14,7 @@ Guests now need a visitor address from the host. Copy the kit again after you up
 - Improve  - Settings says plainly when the site has no email provider, and saving the Email tab sends one test notice.
 - Improve  - My reviews uses the site's own page column and gutter through src/layouts/ReviewsLayout.astro.
 - Improve  - A guest on My reviews sees a plain sign-in prompt instead of a red error.
+- Improve  - The reviews section keeps the same space and rule above it as the blog template's Discussion section.
 - Fix      - Published reviews and the rating stay right however many reviews are waiting, and pages with over 500 reviews count them all.
 - Fix      - The review list and the rating badge show nothing for an unpublished page or a closed content type.
 - Fix      - Install snippets name the file to edit and use the import path that works from it.
