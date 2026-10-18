@@ -146,13 +146,21 @@ async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unk
 			type: "code",
 			language: "bash",
 			// A fresh mktemp folder (never a fixed /tmp path someone else could create first), and the script runs only if the clone worked.
-			// Three lines: a Block Kit code block does not wrap or scroll, so one long line was cut off.
-			code: `kit="$(mktemp -d)" &&\n  git clone --branch ${tag} --depth 1 ${REPO} "$kit/emdash-reviews" &&\n  "$kit/emdash-reviews/scripts/add-to-site.sh" .`,
+			// Six lines of 52 characters or fewer (starter rule): a Block Kit code block does not wrap or scroll.
+			code: [
+				'kit="$(mktemp -d)" &&',
+				"  git clone --depth 1 \\",
+				`    --branch ${tag} \\`,
+				`    ${REPO} \\`,
+				'    "$kit/emdash-reviews" &&',
+				'  "$kit/emdash-reviews/scripts/add-to-site.sh" .',
+			].join("\n"),
 		},
+		{ type: "actions", elements: [{ type: "link", label: "Copy it from the install guide on a phone", target: { kind: "external", url: installGuide(ctx) } }] },
 		{
 			type: "fields",
 			fields: [
-				{ label: "Each post page", value: "Reviews and the form" },
+				{ label: "Each post page", value: "Reviews, form" },
 				{ label: "Post cards", value: "Star rating" },
 				{ label: "/account/reviews/", value: "My reviews" },
 			],

@@ -9,7 +9,10 @@ Copy the kit again after you update, from your site's root folder:
 
 ```bash
 kit="$(mktemp -d)" &&
-  git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+  git clone --depth 1 \
+    --branch v0.2.1 \
+    https://github.com/wbcomdesigns/emdash-reviews \
+    "$kit/emdash-reviews" &&
   "$kit/emdash-reviews/scripts/add-to-site.sh" .
 ```
 

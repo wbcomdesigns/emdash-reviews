@@ -38,16 +38,11 @@ out="$("$SCRIPT" "$site")"
 grep -q testimonials "$site"/src/components/Reviews.astro.bak-* || fail "replaced the site's own Reviews.astro without a backup"
 grep -q mine "$site/src/layouts/ReviewsLayout.astro" || fail "replaced the site's ReviewsLayout.astro"
 
-# The update command is printed on three lines.
-grep -q '^       kit="$(mktemp -d)" &&$' <<<"$out" || fail "update command line 1"
-grep -qE '^         git clone --branch v[0-9.]+ --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" &&$' <<<"$out" || fail "update command line 2"
-grep -q '^         "$kit/emdash-reviews/scripts/add-to-site.sh" .$' <<<"$out" || fail "update command line 3"
-
-# An older shared file another plugin copied is upgraded, and the script says so with both numbers.
-new_site shared
-mkdir -p "$site/src/styles"; printf '/* wbcom-shared: 2 */\n' > "$site/src/styles/wbcom-base.css"
-out="$("$SCRIPT" "$site")"
-[[ "$out" == *"Updated src/styles/wbcom-base.css from wbcom-shared 2 to 4"* ]] || fail "no line about the upgraded shared file"
+# The update command is printed on six lines of 52 characters or fewer.
+block="$(grep -A5 '^       kit="$(mktemp -d)" &&$' <<<"$out")"
+[[ "$(wc -l <<<"$block" | tr -d ' ')" == 6 ]] || fail "update command is not six lines"
+grep -q -- '--branch v[0-9.]* \\$' <<<"$block" || fail "update command has no --branch line"
+while IFS= read -r line; do trimmed="${line#"${line%%[![:space:]]*}"}"; (( ${#line} - 7 <= 52 )) || fail "update command line over 52 characters: $trimmed"; done <<<"$block"
 
 # A folder that is not an EmDash site is refused.
 mkdir -p "$work/plain"

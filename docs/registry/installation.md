@@ -20,14 +20,17 @@ Checked on EmDash 1.3.1 with the `blog` template on Node. The Cloudflare lines f
 
    ```bash
    kit="$(mktemp -d)" &&
-     git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+     git clone --depth 1 \
+       --branch v0.2.1 \
+       https://github.com/wbcomdesigns/emdash-reviews \
+       "$kit/emdash-reviews" &&
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
    ```
 
-3. Paste the lines it printed. Restart the dev server.
-4. Add the menu link it printed in Admin, Menus.
-5. Open Reviews, Waiting and follow it.
+3. Paste the lines it prints. Restart the dev server.
+4. Add the menu link it prints in Admin, Menus.
+5. Open Reviews, Waiting.
 
 After every update, run step 2 with the new tag.
 
-Full guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.2.1/docs/website/getting-started/install.md
+Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.2.1/docs/website/getting-started/install.md

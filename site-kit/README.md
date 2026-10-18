@@ -11,7 +11,10 @@ Checked on EmDash 1.3.1 with the `blog` template on Node.
 
    ```bash
    kit="$(mktemp -d)" &&
-     git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+     git clone --depth 1 \
+       --branch v0.2.1 \
+       https://github.com/wbcomdesigns/emdash-reviews \
+       "$kit/emdash-reviews" &&
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
    ```
 

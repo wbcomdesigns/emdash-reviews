@@ -105,7 +105,10 @@ Then:
 After every plugin update, run this from your site's root folder, with the new version's tag in place of v$VERSION
 (a fresh mktemp folder, and the script runs only if the clone worked):
        kit="\$(mktemp -d)" &&
-         git clone --branch v$VERSION --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" &&
+         git clone --depth 1 \\
+           --branch v$VERSION \\
+           https://github.com/wbcomdesigns/emdash-reviews \\
+           "\$kit/emdash-reviews" &&
          "\$kit/emdash-reviews/scripts/add-to-site.sh" .
 
 Optional, the Reviews and Rating blocks inside post text (trusted site code). In astro.config.mjs:

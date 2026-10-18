@@ -256,8 +256,17 @@ describe("first admin screen", () => {
 		const first = blocksText(await rt.admin.loadPage("/waiting"));
 		const version = rt.manifest.version;
 		expect(first).toContain("Set up visitor pages");
-		const command = `kit="$(mktemp -d)" &&\n  git clone --branch v${version} --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&\n  "$kit/emdash-reviews/scripts/add-to-site.sh" .`;
-		expect(first).toContain(JSON.stringify(command).slice(1, -1));
+		const lines = [
+			'kit="$(mktemp -d)" &&',
+			"  git clone --depth 1 \\",
+			`    --branch v${version} \\`,
+			"    https://github.com/wbcomdesigns/emdash-reviews \\",
+			'    "$kit/emdash-reviews" &&',
+			'  "$kit/emdash-reviews/scripts/add-to-site.sh" .',
+		];
+		expect(first).toContain(JSON.stringify(lines.join("\n")).slice(1, -1));
+		expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(52);
+		expect(first).toContain("Copy it from the install guide on a phone");
 		expect(first).not.toContain("/tmp/");
 		expect(first).toContain("/account/reviews/");
 		expect(first).toContain(`blob/v${version}/docs/website/getting-started/install.md`);
