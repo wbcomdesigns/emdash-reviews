@@ -2,12 +2,17 @@
 # Copies the WB Reviews site kit into an EmDash site. Safe to run again after every plugin update.
 #   /path/to/emdash-reviews/scripts/add-to-site.sh /path/to/your/site
 # It never replaces a newer shared file another Wbcom plugin copied, never replaces
-# src/layouts/ReviewsLayout.astro once it exists, backs up the wording file only if you edited it, and backs
-# up any same-named file of your own (one without the wb-reviews-kit marker) before replacing it.
+# src/layouts/ReviewsLayout.astro once it exists, and backs up any kit file you edited (any file whose
+# hash is not a released one, see site-kit/kit.sums) before replacing it.
 set -euo pipefail
 
 KIT="$(cd "$(dirname "$0")/../site-kit" && pwd)"
 VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$KIT/../package.json" | head -n 1)"
+if [[ ! -d "${1:-.}" ]]; then
+	echo "${1:-.} is not a folder." >&2
+	echo "Usage: $0 /path/to/your/site" >&2
+	exit 1
+fi
 SITE="$(cd "${1:-.}" && pwd)"
 
 if ! ls "$SITE"/astro.config.* >/dev/null 2>&1 || ! grep -q "emdash" "$SITE"/astro.config.*; then
@@ -33,41 +38,37 @@ for part in lib/wbcom-kit.ts styles/wbcom-base.css; do
 	fi
 done
 
-stamp="$(date +%Y%m%d-%H%M%S)"
-
-# The wording file is meant to be edited. Keep a copy only when the owner changed it: the kit lists the
-# SHA-256 of the file as shipped in every release (lib/reviews-strings.sums), so an untouched older copy
-# is replaced without a word.
+# Every file below may be edited by the owner. site-kit/kit.sums lists the SHA-256 of each file as
+# shipped in every release, by site path. A site file whose hash is not listed for its path was edited
+# (or is the site's own file with the same name): it is backed up before it is replaced. Untouched files
+# from any release are replaced without a word.
 sha() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
-strings="$SITE/src/lib/reviews-strings.ts"
-if [[ -f "$strings" ]] && ! grep -qx "$(sha "$strings")" "$KIT/lib/reviews-strings.sums"; then
-	cp "$strings" "$strings.bak-$stamp"
-	notes+=("Your wording file differed, so it was saved as src/lib/reviews-strings.ts.bak-$stamp. Copy your changes back into src/lib/reviews-strings.ts.")
-fi
-cp "$KIT/lib/reviews-strings.ts" "$strings"
-
-# A file with one of these names that is not a WB Reviews kit file belongs to the site: keep a copy
-# before replacing it. Kit files carry the wb-reviews-kit marker; kits before 0.2.1 are known by
-# their data-wbr hooks, .wbr- classes or the MyReviews import.
+backups=()
+backup_name() {
+	local name="$1.bak-$(date +%Y%m%d)"
+	[[ -e "$name" ]] && name="$1.bak-$(date +%Y%m%d-%H%M%S)"
+	echo "$name"
+}
 place() {
 	local from="$1" rel="$2" target="$SITE/$2"
-	if [[ -f "$target" ]] && ! cmp -s "$from" "$target" && ! grep -qE 'wb-reviews-kit|data-wbr|\.wbr-|MyReviews\.astro' "$target"; then
-		cp "$target" "$target.bak-$stamp"
-		notes+=("$rel was not a WB Reviews kit file, so your copy was saved as $rel.bak-$stamp.")
+	mkdir -p "$(dirname "$target")"
+	if [[ -f "$target" ]] && ! cmp -s "$from" "$target" && ! grep -qx "$(sha "$target")  $rel" "$KIT/kit.sums"; then
+		local saved; saved="$(backup_name "$target")"
+		cp "$target" "$saved"
+		backups+=("${saved#"$SITE/"}")
 	fi
 	cp "$from" "$target"
 }
+place "$KIT/lib/reviews-strings.ts" src/lib/reviews-strings.ts
 place "$KIT/styles/reviews.css" src/styles/reviews.css
 for name in Reviews RatingBadge MyReviews; do place "$KIT/components/$name.astro" "src/components/$name.astro"; done
 place "$KIT/pages/account/reviews.astro" src/pages/account/reviews.astro
+# The optional in-text blocks are trusted site code. Copied, but off until astro.config.mjs loads them.
+for file in "$KIT"/blocks/*; do place "$file" "src/reviews-block/$(basename "$file")"; done
 
 layout="new"
 if [[ -f "$SITE/src/layouts/ReviewsLayout.astro" ]]; then layout="yours, left as it is"; else cp "$KIT/layouts/ReviewsLayout.astro" "$SITE/src/layouts/"; fi
 [[ -f "$SITE/src/layouts/Base.astro" ]] || notes+=("Your site has no src/layouts/Base.astro. Open src/layouts/ReviewsLayout.astro and point it at your layout.")
-
-# The optional in-text blocks are trusted site code. Copied, but off until astro.config.mjs loads them.
-mkdir -p "$SITE/src/reviews-block"
-cp -R "$KIT/blocks/." "$SITE/src/reviews-block/"
 
 cat <<DONE
 WB Reviews kit copied into $SITE
@@ -90,7 +91,7 @@ Paste these lines:
 
   2. In src/components/PostCard.astro (the post card), add to the imports at the top:
        import RatingBadge from "./RatingBadge.astro";
-     and inside the card, for example after the post__meta line:
+     and inside the card, on the line after the closing </span> of <span class="post__meta">:
        <RatingBadge collection="posts" id={post.data.id} />
 
   Use post.data.id (the entry id), not post.id (the slug). For pages, use collection="pages".
@@ -117,3 +118,9 @@ Optional, the Reviews and Rating blocks inside post text (trusted site code). In
        plugins: [reviewsBlock()],
 DONE
 for note in "${notes[@]+"${notes[@]}"}"; do echo; echo "Note: $note"; done
+if ((${#backups[@]})); then
+	echo
+	echo "You had changed these files, so your copies were saved before the kit replaced them:"
+	for saved in "${backups[@]}"; do echo "  $saved"; done
+	echo "Copy your changes back from them (src/lib/reviews-strings.ts holds all visitor wording)."
+fi

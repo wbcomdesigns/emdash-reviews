@@ -52,7 +52,7 @@ On the blog template, post cards are drawn by `src/components/PostCard.astro`, w
    import RatingBadge from "./RatingBadge.astro";
    ```
 
-2. In the same file, place the badge where the card should show it, for example after the `post__meta` line:
+2. In the same file, place the badge where the card should show it, on the line after the closing `</span>` of `<span class="post__meta">`:
 
    ```astro
    <RatingBadge collection="posts" id={post.data.id} />

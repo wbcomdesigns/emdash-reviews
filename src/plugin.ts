@@ -133,6 +133,7 @@ async function saveReview(ctx: PluginContext, input: SaveInput): Promise<{ ok: t
 		body: input.body,
 		has_text: hasText,
 		status: moderate ? "pending" : "published",
+		publishedAt: moderate ? "" : asString(existing.publishedAt) || nowIso(),
 		rev: crypto.randomUUID(),
 		createdAt,
 		guest: input.guest,
@@ -233,6 +234,8 @@ const plugin: SandboxedPlugin = {
 					guestWrites,
 					// False when the host passes EmDash no visitor address: the kit then says "Sign in to write a review."
 					hostAddress,
+					// The owner's setting, so the kit can say "Only members can review this page." when that is the reason.
+					setting,
 					askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
 				};
 			},
@@ -298,7 +301,17 @@ const plugin: SandboxedPlugin = {
 					.map((id) => id.trim())
 					.filter(Boolean)
 					.slice(0, 50);
-				const found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
+				let found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
+				// A rating row 0.2.0 deleted while published reviews remained is rebuilt, as list does.
+				// ponytail: one count per card with no rating row (50 at most); drop once 0.2.0 sites are gone.
+				const missing = ids.filter((id, index) => !found[index]);
+				const lost = await Promise.all(
+					missing.map(async (id) => (await ctx.storage.reviews.count({ entry: entryKey(collection, id), status: "published" })) > 0),
+				);
+				if (lost.some(Boolean)) {
+					for (const [index, id] of missing.entries()) if (lost[index]) await syncRating(ctx, entryKey(collection, id));
+					found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
+				}
 				const rated = ids.filter((id, index) => asNumber(asRecord(found[index]).count));
 				// One content read per rated card (50 at most), so a draft or unpublished entry shows no badge.
 				const live = await Promise.all(rated.map((id) => isPublished(ctx, collection, id)));

@@ -141,7 +141,7 @@ async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unk
 			description:
 				"Visitors see reviews only after the site kit is in your site's code. A registry plugin cannot add pages by itself, so until then posts show no reviews and /account/reviews/ shows your 404 page.",
 		},
-		{ type: "context", text: `From your site's root folder, run this command. It gets the kit for this version (${tag}) and copy it in.` },
+		{ type: "context", text: `From your site's root folder, run this command. It gets the kit for this version (${tag}) and copies it in.` },
 		{
 			type: "code",
 			language: "bash",
@@ -202,7 +202,8 @@ async function listStats(ctx: PluginContext) {
 	const since = new Date(Date.now() - WEEK_MS).toISOString();
 	const [waiting, week] = await Promise.all([
 		waitingCount(ctx),
-		ctx.storage.reviews.count({ status: "published", createdAt: { gte: since } }),
+		// By approval time. Reviews approved before 0.2.1 carry no publishedAt and are not counted here.
+		ctx.storage.reviews.count({ status: "published", publishedAt: { gte: since } }),
 	]);
 	let stars = 0;
 	let count = 0;
@@ -740,6 +741,12 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
 			return renderSettings(ctx, routeCtx, { message: "Save the address the notice should go to first.", type: "error" });
 		}
+		// At most one test a minute, so the button cannot be used to flood an inbox.
+		const last = Number((await ctx.kv.get<string>("test_notice_at")) || 0);
+		if (Date.now() - last < 60_000) {
+			return renderSettings(ctx, routeCtx, { message: "A test notice was just sent. Wait a minute before sending another.", type: "info" });
+		}
+		await ctx.kv.set("test_notice_at", String(Date.now()));
 		const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
 		const sent = await sendMail(ctx, {
 			to,
@@ -799,6 +806,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				title: asString(row.pending_title),
 				body: asString(row.pending_body),
 				has_text: row.pending_has_text === true,
+				publishedAt: asString(row.publishedAt) || new Date().toISOString(),
 				author: asString(row.pending_author) || row.author,
 				email: row.pending_author ? asString(row.pending_email) : row.email,
 				pending_author: "",
@@ -828,6 +836,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			await ctx.storage.reviews.put(id, {
 				...row,
 				status: action === "approve" ? "published" : "rejected",
+				publishedAt: action === "approve" ? new Date().toISOString() : "",
 				rev: crypto.randomUUID(),
 			});
 		}

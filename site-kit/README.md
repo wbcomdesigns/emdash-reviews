@@ -18,7 +18,7 @@ Checked on EmDash 1.3.1 with the `blog` template on Node.
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
    ```
 
-   The script never replaces a newer shared file (`wbcom-kit.ts`, `wbcom-base.css`) another Wbcom plugin copied, never replaces `src/layouts/ReviewsLayout.astro` once it exists, and saves `reviews-strings.ts` as `reviews-strings.ts.bak-<date>-<time>` before replacing it only when you edited it.
+   The script never replaces a newer shared file (`wbcom-kit.ts`, `wbcom-base.css`) another Wbcom plugin copied, never replaces `src/layouts/ReviewsLayout.astro` once it exists, and before it replaces any kit file you changed (wording, styles, components, the My reviews page), it saves your copy as `<file>.bak-YYYYMMDD` and lists it. Untouched files are replaced quietly.
 3. Paste the lines it prints. On the blog template:
 
    In `src/pages/posts/[slug].astro`:

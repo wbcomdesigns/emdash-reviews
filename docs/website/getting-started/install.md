@@ -47,11 +47,13 @@ After every plugin update, run step 2 again with the new tag.
 | `src/components/Reviews.astro` | Reviews, the rating bars and the form for one entry |
 | `src/components/RatingBadge.astro` | The small star rating for cards |
 | `src/components/MyReviews.astro` and `src/pages/account/reviews.astro` | **My reviews** at `/account/reviews/` |
-| `src/layouts/ReviewsLayout.astro` | The page shell for My reviews. Yours after the first copy: the script never replaces it |
-| `src/lib/reviews-strings.ts` | Every word a visitor sees. If you edited it, your copy is saved as `reviews-strings.ts.bak-<date>-<time>` before it is replaced. An untouched copy from an older release is replaced without a word |
+| `src/lib/reviews-strings.ts` | Every word a visitor sees |
 | `src/styles/reviews.css` | The reviews look |
-| `src/lib/wbcom-kit.ts`, `src/styles/wbcom-base.css` | Shared by every Wbcom plugin. Copied only when your site has none or an older one |
 | `src/reviews-block/` | Optional in-text blocks, off until you add them to `astro.config.mjs` |
+| `src/layouts/ReviewsLayout.astro` | The page shell for My reviews. **Kept:** copied once, never replaced |
+| `src/lib/wbcom-kit.ts`, `src/styles/wbcom-base.css` | Shared by every Wbcom plugin. **Kept** when your site has a newer copy; replaced (and said so) when yours is older |
+
+Every other file in the list is **replaced** on each run. If you changed one (its content is not what any release shipped, checked against `site-kit/kit.sums`), the script first saves your copy next to it as `<file>.bak-YYYYMMDD` (with the time added on a second run the same day) and lists every copy it saved. Files you never touched are replaced without a word. Keep your wording in `src/lib/reviews-strings.ts` and your page shell in `ReviewsLayout.astro`, then copy any wording changes back from the backup after an update.
 
 ## The lines to paste
 
@@ -75,7 +77,7 @@ In `src/components/PostCard.astro` (the post card), add to the imports at the to
 import RatingBadge from "./RatingBadge.astro";
 ```
 
-and inside the card, for example after the `post__meta` line:
+and inside the card, on the line after the closing `</span>` of `<span class="post__meta">`:
 
 ```astro
 <RatingBadge collection="posts" id={post.data.id} />

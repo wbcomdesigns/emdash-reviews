@@ -171,6 +171,36 @@ describe("list reads one page, not every review", () => {
 	});
 });
 
+describe("round 2 checks", () => {
+	it("counts Published this week by approval time", async () => {
+		const { call, rt, live } = await site();
+		// Written long ago, approved now: it counts this week.
+		await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-old`, {
+			entry: `posts:${live}`, collection: "posts", entryId: live, status: "pending", stars: 4, body: "Old",
+			has_text: true, rev: "r", createdAt: "2025-01-01T00:00:00Z",
+		});
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|r|posts:${live}:v-old` });
+		expect(await rt.inspect.storage.get("reviews", `posts:${live}:v-old`)).toMatchObject({ status: "published" });
+		const page = blocksText(await rt.admin.loadPage("/published"));
+		expect(page).toContain('"label":"Published this week","value":"1"');
+	});
+
+	it("summary rebuilds a rating row 0.2.0 deleted while published reviews remained", async () => {
+		const { call, rt, live } = await site();
+		await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-a`, {
+			entry: `posts:${live}`, collection: "posts", entryId: live, status: "published", stars: 4, body: "Kept",
+			has_text: true, rev: "r", createdAt: "2026-10-01T00:00:00Z",
+		});
+		expect(await call("summary", { collection: "posts", ids: live }, { method: "GET" })).toMatchObject({ ratings: { [live]: { average: 4, count: 1 } } });
+	});
+
+	it("health tells the kit the owner's setting as well as who can write now", async () => {
+		const { call } = await site();
+		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "members" }, page: "/settings" });
+		expect(await call("health", {}, fromIp(null, "GET"))).toMatchObject({ who: "members", setting: "members", hostAddress: false });
+	});
+});
+
 describe("member check and erasure", () => {
 	it("answers me cheaply for members and 'sign in' for guests", async () => {
 		const { call } = await site();
@@ -303,6 +333,14 @@ describe("email notice without a mail provider", () => {
 			expect(tested.toast.message).toBe("Test notice sent to owner@example.com.");
 			expect(blocksText(tested)).not.toContain("This site has no email provider");
 		}
+	});
+
+	it("sends at most one test notice a minute", async () => {
+		const { call } = await site();
+		await call("admin", { type: "form_submit", action_id: "save_notify", values: { notify: true, notify_to: "owner@example.com" }, page: "/settings" });
+		await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" });
+		const again = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as { toast: { message: string } };
+		expect(again.toast.message).toBe("A test notice was just sent. Wait a minute before sending another.");
 	});
 
 	it("asks for a saved address before a test notice", async () => {

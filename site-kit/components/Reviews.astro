@@ -111,6 +111,17 @@ const zone = (await getSiteSettings())?.timezone || "";
 	type Result = { ok: boolean; status?: string; error?: { code?: string } };
 	type Bars = Record<string, number>;
 
+	// The 0.2.0 engine keys a guest with no visitor address by this browser token; without it every
+	// submission there would be a new guest. The 0.2.1 engine ignores it. Keep sending it (shared rule).
+	function visitorToken(): string {
+		const key = "wbr_vid";
+		const found = document.cookie.split("; ").find((part) => part.startsWith(`${key}=`));
+		if (found) return decodeURIComponent(found.slice(key.length + 1));
+		const token = crypto.randomUUID();
+		document.cookie = `${key}=${encodeURIComponent(token)}; path=/; max-age=31536000; samesite=lax`;
+		return token;
+	}
+
 	function tell(box: HTMLElement, result: Result, success: string) {
 		box.hidden = false;
 		box.dataset.tone = result.ok ? "success" : "error";
@@ -161,7 +172,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const html = items
 			.map(
 				(item) =>
-					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}${item.body ? `<p>${esc(item.body)}</p>` : ""}${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
+					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted wbr-date">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}${item.body ? `<p>${esc(item.body)}</p>` : ""}${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
 			)
 			.join("");
 		if (replace) list.innerHTML = `<ul class="wb-list">${html}</ul>`;
@@ -207,7 +218,8 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const signInLink = signInBox?.querySelector("a");
 		if (signInLink) signInLink.href = signInUrl();
 		const signInText = signInBox?.querySelector("strong");
-		if (signInText) signInText.textContent = health.hostAddress === false ? S.signInGuest : S.signInWrite;
+		// Members-only says so; "anyone" on a host with no visitor address asks guests to sign in.
+		if (signInText) signInText.textContent = health.setting !== "members" && health.hostAddress === false ? S.signInGuest : S.signInWrite;
 		if (form) form.hidden = !canWrite;
 		if (signInBox) signInBox.hidden = canWrite;
 		// A signed-in member writes as their account: no name or email boxes.
@@ -263,6 +275,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 				name: String(fields.get("name") ?? ""),
 				email: String(fields.get("email") ?? ""),
 				website: String(fields.get("website") ?? ""),
+				visitor: visitorToken(),
 			};
 			const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
 			button?.setAttribute("aria-busy", "true");

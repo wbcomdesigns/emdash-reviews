@@ -179,3 +179,8 @@
 	padding-block-start: var(--spacing-10, 2.5rem);
 	border-block-start: 1px solid var(--wb-border);
 }
+
+/* The date stays on one line next to the name at 390. */
+.wbr-date {
+	white-space: nowrap;
+}
