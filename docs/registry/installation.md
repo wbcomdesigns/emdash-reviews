@@ -9,8 +9,6 @@ Stop the dev server and start it again. **Registry** now shows in the admin menu
 
 **2. The plugin is the engine. Visitor pages come from its site kit.** A registry plugin cannot add pages to your site. Until you copy the kit, its addresses (for example `/account/reviews/`) show your site's 404 page. That is expected. The kit copy below takes one command.
 
-**3. You need Node 22.16 or later** for the `npx emdash seed` step.
-
 Checked on EmDash 1.3.1 with the `blog` template on Node. The Cloudflare lines follow EmDash's own guide; we have not run them on a Cloudflare site yet.
 
 ## Install

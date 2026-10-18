@@ -15,6 +15,7 @@ const PAGE_SIZE = 25;
 const SCAN = 5000;
 const REPO = "https://github.com/wbcomdesigns/emdash-reviews";
 const KIT_DONE = "kit_done";
+const TEST_AT = "test_notice_at";
 const REPLY_MAX = 1000;
 const CLIP = 80;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -741,18 +742,21 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
 			return renderSettings(ctx, routeCtx, { message: "Save the address the notice should go to first.", type: "error" });
 		}
-		// At most one test a minute, so the button cannot be used to flood an inbox.
-		const last = Number((await ctx.kv.get<string>("test_notice_at")) || 0);
-		if (Date.now() - last < 60_000) {
-			return renderSettings(ctx, routeCtx, { message: "A test notice was just sent. Wait a minute before sending another.", type: "info" });
-		}
-		await ctx.kv.set("test_notice_at", String(Date.now()));
+		// At most one test a minute, so the button cannot flood an inbox. Compare-and-set: of many parallel
+		// clicks exactly one claims the minute and sends.
+		const wait: Toast = { message: "A test notice was just requested. Wait a minute before sending another.", type: "info" };
+		const seen = await ctx.kv.getVersioned<number>(TEST_AT);
+		if (seen && Date.now() - Number(seen.value) < 60_000) return renderSettings(ctx, routeCtx, wait);
+		const claim = await ctx.kv.compareAndSet(TEST_AT, seen?.revision ?? null, Date.now());
+		if (!claim.applied) return renderSettings(ctx, routeCtx, wait);
 		const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
 		const sent = await sendMail(ctx, {
 			to,
 			subject: "Test notice from Reviews",
 			text: `This is the test you asked for. Notices about waiting reviews${site ? ` on ${site}` : ""} will reach this address.`,
 		});
+		// Nothing could go out: free the minute so the owner can test again as soon as a provider is set up.
+		if (sent === "none") await ctx.kv.compareAndDelete(TEST_AT, claim.revision).catch(() => undefined);
 		const toasts: Record<typeof sent, Toast> = {
 			sent: { message: `Test notice sent to ${to}.`, type: "success" },
 			none: { message: "No notice was sent: this site has no email provider.", type: "error" },

@@ -91,7 +91,10 @@ Paste these lines:
 
   2. In src/components/PostCard.astro (the post card), add to the imports at the top:
        import RatingBadge from "./RatingBadge.astro";
-     and inside the card, on the line after the closing </span> of <span class="post__meta">:
+     and inside the card, right after these two lines (the end of <span class="post__meta">):
+       				<span>{readingTime}</span>
+       			</span>
+     add:
        <RatingBadge collection="posts" id={post.data.id} />
 
   Use post.data.id (the entry id), not post.id (the slug). For pages, use collection="pages".

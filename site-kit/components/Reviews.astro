@@ -113,6 +113,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 
 	// The 0.2.0 engine keys a guest with no visitor address by this browser token; without it every
 	// submission there would be a new guest. The 0.2.1 engine ignores it. Keep sending it (shared rule).
+	// TODO: drop visitorToken() and the visitor field once no site runs the 0.2.0 engine.
 	function visitorToken(): string {
 		const key = "wbr_vid";
 		const found = document.cookie.split("; ").find((part) => part.startsWith(`${key}=`));
@@ -256,6 +257,34 @@ const zone = (await getSiteSettings())?.timezone || "";
 			void load(page + 1, true);
 		});
 
+		// The stars sit 5..1 in the markup (so CSS can fill to the left), which reverses the browser's own
+		// arrow keys. Take the keys over: Right/Up raise, Left/Down lower, Home/End go to 1/5, and Tab
+		// lands on the chosen star, or on 1 star when none is chosen.
+		const radios = [...root.querySelectorAll<HTMLInputElement>(".wbr-rate input[name=stars]")];
+		const star = (n: number) => radios.find((radio) => Number(radio.value) === n);
+		const roving = () => {
+			const current = radios.find((radio) => radio.checked) ?? star(1);
+			for (const radio of radios) radio.tabIndex = radio === current ? 0 : -1;
+		};
+		root.querySelector(".wbr-rate")?.addEventListener("keydown", (event) => {
+			const key = (event as KeyboardEvent).key;
+			const now = Number(radios.find((radio) => radio.checked)?.value || 0);
+			const next =
+				key === "ArrowRight" || key === "ArrowUp" ? Math.min(5, now + 1)
+				: key === "ArrowLeft" || key === "ArrowDown" ? Math.max(1, now - 1)
+				: key === "Home" ? 1
+				: key === "End" ? 5
+				: 0;
+			const target = next ? star(next) : undefined;
+			if (!target) return;
+			event.preventDefault();
+			target.checked = true;
+			target.focus();
+			roving();
+		});
+		root.querySelector(".wbr-rate")?.addEventListener("change", roving);
+		roving();
+
 		const status = root.querySelector<HTMLElement>("[data-wbr-status]");
 		form?.addEventListener("submit", async (event) => {
 			event.preventDefault();
@@ -284,6 +313,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 			tell(status, result, result.status === "published" ? S.thanksLive : S.thanksPending);
 			if (result.ok) {
 				form.reset();
+				roving();
 				await load(1, false);
 			}
 		});

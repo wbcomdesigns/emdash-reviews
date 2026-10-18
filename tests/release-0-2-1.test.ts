@@ -335,12 +335,27 @@ describe("email notice without a mail provider", () => {
 		}
 	});
 
-	it("sends at most one test notice a minute", async () => {
+	it("sends at most one test notice a minute, even for parallel clicks", async () => {
 		const { call } = await site();
 		await call("admin", { type: "form_submit", action_id: "save_notify", values: { notify: true, notify_to: "owner@example.com" }, page: "/settings" });
-		await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" });
-		const again = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as { toast: { message: string } };
-		expect(again.toast.message).toBe("A test notice was just sent. Wait a minute before sending another.");
+		const wait = "A test notice was just requested. Wait a minute before sending another.";
+		const results = (await Promise.all(
+			Array.from({ length: 8 }, () => call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })),
+		)) as Array<{ toast: { message: string } }>;
+		const attempts = results.filter((r) => r.toast.message !== wait);
+		expect(attempts.length).toBeGreaterThanOrEqual(1);
+		const sent = attempts.filter((r) => r.toast.message.startsWith("Test notice sent"));
+		// With a provider exactly one sends; with none, each attempt says nothing went and none says "just requested" falsely.
+		if (sent.length) {
+			expect(sent).toHaveLength(1);
+			expect(attempts).toHaveLength(1);
+			const again = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as { toast: { message: string } };
+			expect(again.toast.message).toBe(wait);
+		} else {
+			for (const r of attempts) expect(r.toast.message).toBe("No notice was sent: this site has no email provider.");
+			const again = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as { toast: { message: string } };
+			expect(again.toast.message).toBe("No notice was sent: this site has no email provider.");
+		}
 	});
 
 	it("asks for a saved address before a test notice", async () => {

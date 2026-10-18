@@ -77,7 +77,14 @@ In `src/components/PostCard.astro` (the post card), add to the imports at the to
 import RatingBadge from "./RatingBadge.astro";
 ```
 
-and inside the card, on the line after the closing `</span>` of `<span class="post__meta">`:
+and inside the card, right after these two lines, which end `<span class="post__meta">` (the first `</span>` after it closes the nested reading-time span, not the meta span):
+
+```astro
+				<span>{readingTime}</span>
+			</span>
+```
+
+add:
 
 ```astro
 <RatingBadge collection="posts" id={post.data.id} />
@@ -101,7 +108,7 @@ The first Reviews screen, **Waiting**, shows **Set up visitor pages** with the c
 
 ## Guests and hosting
 
-EmDash gives a plugin the visitor's address only on Cloudflare, or when the site sets `trustedProxyHeaders` in `astro.config.mjs`. Without an address, guests are asked to sign in before they can write a review, so one person cannot review many times.
+EmDash gives a plugin the visitor's address only on Cloudflare, or when the site sets `trustedProxyHeaders` inside `emdash({ ... })` in `astro.config.mjs` (for example `trustedProxyHeaders: ["x-real-ip"],`). Without an address, guests are asked to sign in before they can write a review, so one person cannot review many times.
 
 Set `trustedProxyHeaders` only to a header that **your proxy writes itself and replaces** on every request. EmDash reads the first address in that header. Many proxies **add** to `X-Forwarded-For` instead of replacing it (nginx `$proxy_add_x_forwarded_for`, most load balancers), so the first address is whatever the visitor typed, and a guest could review again and again. Behind nginx, set `proxy_set_header X-Real-IP $remote_addr;` and use `trustedProxyHeaders: ["x-real-ip"]`. Behind another proxy, use the header it overwrites with the connecting address. If you are not sure, leave it unset: members can still take part.
 
@@ -113,6 +120,10 @@ emdash({
 ```
 
 Without an address, guests see **Sign in to write a review.** instead of the form, members review as normal, and Settings shows **Guests are asked to sign in on this hosting**. The address itself is never stored: a guest is a salted hash of it, and an IPv6 visitor counts by their /64 network.
+
+## Cookie
+
+The review form sets one cookie, `wbr_vid`, a random token with no personal data. It exists only so a site whose plugin is still on the 0.2.0 engine counts one guest per browser. The 0.2.1 engine ignores it and counts guests by visitor address. It will be removed once 0.2.0 engines are gone.
 
 ## In the browser console
 
