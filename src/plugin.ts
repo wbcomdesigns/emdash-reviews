@@ -19,7 +19,8 @@ import {
 	waitingCount,
 	type Member,
 } from "./core";
-import { asNumber, asRecord, asString, guestAddress, nowIso, plainText, rows } from "./util";
+import { asNumber, asRecord, asString, nowIso, plainText, rows } from "./util";
+import { guestKey } from "./visitor-key";
 
 // Short enough that the moderation table can show every character an admin approves.
 const TITLE_MAX = 120;
@@ -73,7 +74,7 @@ type Meta = { requestMeta?: { ip?: string | null } };
 
 /** The visitor address EmDash passed in, or null. Only Cloudflare, or a site with trustedProxyHeaders, passes one. */
 function visitorAddress(routeCtx: Meta): string | null {
-	return guestAddress(routeCtx.requestMeta?.ip);
+	return guestKey(asString(routeCtx.requestMeta?.ip));
 }
 
 /** One guest per visitor address (an IPv6 /64), hashed with a per-site salt. Never the address itself. */

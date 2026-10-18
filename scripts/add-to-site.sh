@@ -83,7 +83,7 @@ Then:
   5. In the admin, open Reviews, Settings and tick the content types visitors can review.
   6. Open a post and /account/reviews/ to check.
 
-After every plugin update, run this from your site's root folder with the new version's tag
+After every plugin update, run this from your site's root folder, with the new version's tag in place of v$VERSION
 (a fresh mktemp folder, and the script runs only if the clone worked):
        kit="\$(mktemp -d)" && git clone --branch v$VERSION --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" && "\$kit/emdash-reviews/scripts/add-to-site.sh" .
 

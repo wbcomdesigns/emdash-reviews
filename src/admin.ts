@@ -1,7 +1,8 @@
 import type { PluginContext } from "emdash/plugin";
 
 import { allowedCollections, allReviews, entryRefs, noMailProvider, sendMail, siteCollections, syncRating, waitingCount } from "./core";
-import { asBoolean, asNumber, asRecord, asString, asStringArray, guestAddress, plainText, rows } from "./util";
+import { asBoolean, asNumber, asRecord, asString, asStringArray, plainText, rows } from "./util";
+import { guestKey } from "./visitor-key";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
@@ -422,7 +423,7 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 	const noneOpen = settings.site.length > 0 && settings.open.length === 0;
 	const noSchema = settings.site.length === 0;
 	// The admin's own request comes through the same host as a visitor's, so it shows whether EmDash gets visitor addresses here.
-	const guestsOff = settings.who === "anyone" && guestAddress(routeCtx?.requestMeta?.ip) === null;
+	const guestsOff = settings.who === "anyone" && guestKey(asString(routeCtx?.requestMeta?.ip)) === null;
 	const noMail = await noMailProvider(ctx);
 	return {
 		blocks: [

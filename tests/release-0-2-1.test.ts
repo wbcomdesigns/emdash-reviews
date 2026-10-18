@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { guestAddress } from "../src/util";
 import { admin, ana, openSite, withPosts } from "./site";
 
 let dispose: (() => Promise<void>) | undefined;
@@ -82,19 +81,6 @@ describe("guests need a visitor address (owner decision 2026-10-16)", () => {
 		expect(blocksText(off)).toContain("trustedProxyHeaders");
 		const on = await call("admin", { type: "page_load", page: "/settings" }, { ...fromIp("198.51.100.7"), user: admin });
 		expect(blocksText(on)).not.toContain("Guests are asked to sign in on this hosting");
-	});
-});
-
-describe("guestAddress", () => {
-	it("keeps IPv4, maps IPv4-in-IPv6, and cuts IPv6 to its /64", () => {
-		expect(guestAddress("192.0.2.1")).toBe("192.0.2.1");
-		expect(guestAddress("::ffff:192.0.2.1")).toBe("192.0.2.1");
-		expect(guestAddress("2001:db8::1")).toBe("2001:db8:0:0::/64");
-		expect(guestAddress("2001:DB8:0:0:1::1")).toBe("2001:db8:0:0::/64");
-		expect(guestAddress("fe80::1%eth0")).toBe("fe80:0:0:0::/64");
-		expect(guestAddress("::1")).toBe("0:0:0:0::/64");
-		expect(guestAddress(null)).toBeNull();
-		expect(guestAddress(" unknown ")).toBeNull();
 	});
 });
 
