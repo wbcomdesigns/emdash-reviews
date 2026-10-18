@@ -9,9 +9,9 @@ Guests now need a visitor address from the host. Copy the kit again after you up
 - Security - Guests can review only where the host passes EmDash the visitor's address (Cloudflare, or trustedProxyHeaders); elsewhere guests are asked to sign in.
 - Security - IPv6 guests count by their /64 network, so rotating addresses no longer gets around the hourly limit.
 - Security - The public health route no longer shows how many reviews are waiting.
-- New      - The Waiting screen shows Set up visitor pages, with the kit command for the installed version, until you mark them done.
+- New      - The Waiting screen shows Set up visitor pages, with the kit command for the installed version, until you mark them done, with Show the setup steps again afterwards.
 - New      - One command, scripts/add-to-site.sh, copies the kit and prints the lines to paste with their file names.
-- Improve  - Settings says plainly when the site has no email provider, and saving the Email tab sends one test notice.
+- Improve  - A Send a test notice button on the Email tab checks that the site can send email, and Settings says plainly when it cannot.
 - Improve  - My reviews uses the site's own page column and gutter through src/layouts/ReviewsLayout.astro.
 - Improve  - A guest on My reviews sees a plain sign-in prompt instead of a red error.
 - Improve  - The reviews section keeps the same space and rule above it as the blog template's Discussion section.
@@ -21,9 +21,9 @@ Guests now need a visitor address from the host. Copy the kit again after you up
 - Fix      - When a second guest writes from the same address, the change waits with their own name, and Waiting shows the new name.
 - Improve  - A post page asks a new member-only route, me, whether the visitor is signed in, instead of loading their whole review list.
 - Improve  - The review list reads one page of reviews per request; the bars and counts come from the stored rating.
-- Improve  - add-to-site.sh keeps a dated copy of any same-named file of your own before replacing it.
+- Improve  - add-to-site.sh keeps a dated copy of any same-named file of your own, and of the wording file only when you edited it.
 - Fix      - Install snippets name the file to edit and use the import path that works from it.
-- Compat   - Checked on EmDash 1.3.0. Shared kit styles 4: buttons use the theme's own colours in dark mode.
+- Compat   - Checked on EmDash 1.3.1. Shared kit styles 4: buttons use the theme's own colours in dark mode.
 
 ## [0.2.0]
 

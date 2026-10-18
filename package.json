@@ -24,7 +24,7 @@
 		"validate": "emdash-plugin validate",
 		"build": "emdash-plugin build",
 		"typecheck": "tsc --noEmit",
-		"test": "emdash-plugin validate && tsc --noEmit && vitest run",
+		"test": "emdash-plugin validate && tsc --noEmit && vitest run && bash tests/add-to-site.test.sh",
 		"bundle": "emdash-plugin bundle",
 		"publish": "emdash-plugin publish"
 	},

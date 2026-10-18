@@ -130,7 +130,9 @@ function installGuide(ctx: PluginContext): string {
  */
 async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unknown>>> {
 	const guide = { type: "link", label: "Install guide", target: { kind: "external", url: installGuide(ctx) } };
-	if ((await ctx.kv.get<boolean>(KIT_DONE)) === true) return [{ type: "actions", elements: [guide] }];
+	if ((await ctx.kv.get<boolean>(KIT_DONE)) === true) {
+		return [{ type: "actions", elements: [guide, { type: "button", label: "Show the setup steps again", action_id: "kit_again" }] }];
+	}
 	const tag = `v${asString(ctx.plugin.version)}`;
 	return [
 		{
@@ -144,14 +146,15 @@ async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unk
 			type: "code",
 			language: "bash",
 			// A fresh mktemp folder (never a fixed /tmp path someone else could create first), and the script runs only if the clone worked.
-			code: `kit="$(mktemp -d)" && git clone --branch ${tag} --depth 1 ${REPO} "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .`,
+			// Three lines: a Block Kit code block does not wrap or scroll, so one long line was cut off.
+			code: `kit="$(mktemp -d)" &&\n  git clone --branch ${tag} --depth 1 ${REPO} "$kit/emdash-reviews" &&\n  "$kit/emdash-reviews/scripts/add-to-site.sh" .`,
 		},
 		{
 			type: "fields",
 			fields: [
-				{ label: "Each post page", value: "Reviews, the rating bars and the review form" },
-				{ label: "Post cards", value: "The star rating" },
-				{ label: "/account/reviews/", value: "My reviews, for signed-in members" },
+				{ label: "Each post page", value: "Reviews and the form" },
+				{ label: "Post cards", value: "Star rating" },
+				{ label: "/account/reviews/", value: "My reviews" },
 			],
 		},
 		{ type: "context", text: "The command prints the lines to paste into your templates and the menu link to add in Admin, Menus." },
@@ -578,6 +581,11 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 								],
 								submit: { label: "Save", action_id: "save_notify" },
 							},
+							{ type: "context", text: "Use Send a test notice to check that this site can send email." },
+							{
+								type: "actions",
+								elements: [{ type: "button", label: "Send a test notice", action_id: "test_notice" }],
+							},
 						],
 					},
 				],
@@ -713,21 +721,34 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			}
 			await ctx.settings.set("notify", asBoolean(values.notify));
 			await ctx.settings.set("notify_to", to);
-			if (!asBoolean(values.notify)) return renderSettings(ctx, routeCtx, { message: "Email notice turned off.", type: "success" });
-			// One short note to the owner's own address: the only way a sandboxed plugin learns whether the site can send mail.
-			const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
-			const sent = await sendMail(ctx, {
-				to,
-				subject: "Review notices are on",
-				text: `You will get at most one email an hour when reviews are waiting${site ? ` on ${site}` : ""}.`,
-			});
-			const toasts: Record<typeof sent, Toast> = {
-				sent: { message: `Email notice saved. A test notice went to ${to}.`, type: "success" },
-				none: { message: "Saved, but no notice will be sent: this site has no email provider.", type: "info" },
-				failed: { message: "Saved, but the test notice could not be sent. Check the site's email provider.", type: "error" },
-			};
-			return renderSettings(ctx, routeCtx, toasts[sent]);
+			return renderSettings(ctx, routeCtx, { message: "Saved.", type: "success" });
 		}
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === "test_notice") {
+		// Only on the owner's click: a sandboxed plugin always has ctx.email, and only a send shows whether
+		// the site has a mail provider. The result sets or clears the lasting banner.
+		const to = asString(await ctx.settings.get<string>("notify_to"));
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+			return renderSettings(ctx, routeCtx, { message: "Save the address the notice should go to first.", type: "error" });
+		}
+		const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
+		const sent = await sendMail(ctx, {
+			to,
+			subject: "Test notice from Reviews",
+			text: `This is the test you asked for. Notices about waiting reviews${site ? ` on ${site}` : ""} will reach this address.`,
+		});
+		const toasts: Record<typeof sent, Toast> = {
+			sent: { message: `Test notice sent to ${to}.`, type: "success" },
+			none: { message: "No notice was sent: this site has no email provider.", type: "error" },
+			failed: { message: "The test notice could not be sent. Check the site's email provider.", type: "error" },
+		};
+		return renderSettings(ctx, routeCtx, toasts[sent]);
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === "kit_again") {
+		await ctx.kv.set(KIT_DONE, false);
+		return renderList(ctx, { kind: "waiting", page: 1, q: "" });
 	}
 
 	if (type === "block_action" && asString(raw.action_id) === KIT_DONE) {

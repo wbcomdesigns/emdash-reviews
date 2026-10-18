@@ -2,7 +2,7 @@
 # Copies the WB Reviews site kit into an EmDash site. Safe to run again after every plugin update.
 #   /path/to/emdash-reviews/scripts/add-to-site.sh /path/to/your/site
 # It never replaces a newer shared file another Wbcom plugin copied, never replaces
-# src/layouts/ReviewsLayout.astro once it exists, backs up a wording file you changed, and backs
+# src/layouts/ReviewsLayout.astro once it exists, backs up the wording file only if you edited it, and backs
 # up any same-named file of your own (one without the wb-reviews-kit marker) before replacing it.
 set -euo pipefail
 
@@ -32,9 +32,12 @@ done
 
 stamp="$(date +%Y%m%d-%H%M%S)"
 
-# The wording file is meant to be edited. Keep the owner's copy before replacing it.
+# The wording file is meant to be edited. Keep a copy only when the owner changed it: the kit lists the
+# SHA-256 of the file as shipped in every release (lib/reviews-strings.sums), so an untouched older copy
+# is replaced without a word.
+sha() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 strings="$SITE/src/lib/reviews-strings.ts"
-if [[ -f "$strings" ]] && ! cmp -s "$KIT/lib/reviews-strings.ts" "$strings"; then
+if [[ -f "$strings" ]] && ! grep -qx "$(sha "$strings")" "$KIT/lib/reviews-strings.sums"; then
 	cp "$strings" "$strings.bak-$stamp"
 	notes+=("Your wording file differed, so it was saved as src/lib/reviews-strings.ts.bak-$stamp. Copy your changes back into src/lib/reviews-strings.ts.")
 fi
@@ -98,7 +101,9 @@ Then:
 
 After every plugin update, run this from your site's root folder, with the new version's tag in place of v$VERSION
 (a fresh mktemp folder, and the script runs only if the clone worked):
-       kit="\$(mktemp -d)" && git clone --branch v$VERSION --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" && "\$kit/emdash-reviews/scripts/add-to-site.sh" .
+       kit="\$(mktemp -d)" &&
+         git clone --branch v$VERSION --depth 1 https://github.com/wbcomdesigns/emdash-reviews "\$kit/emdash-reviews" &&
+         "\$kit/emdash-reviews/scripts/add-to-site.sh" .
 
 Optional, the Reviews and Rating blocks inside post text (trusted site code). In astro.config.mjs:
        import { reviewsBlock } from "./src/reviews-block/descriptor.mjs";

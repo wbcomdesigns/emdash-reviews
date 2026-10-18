@@ -21,7 +21,7 @@ Check these in order:
 
 ## The email notice never arrives
 
-Open **Reviews**, **Settings**, **Email**. If it says **This site has no email provider**, nothing can be sent until you add one, for example the official Resend plugin. Save the Email tab again: the test notice tells you it works.
+Open **Reviews**, **Settings**, **Email**. If it says **This site has no email provider**, nothing can be sent until you add one, for example the official Resend plugin. Then press **Send a test notice**: it tells you whether mail now goes out.
 
 ## Why does the console show a 401?
 

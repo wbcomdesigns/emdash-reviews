@@ -58,7 +58,7 @@ On the blog template, post cards are drawn by `src/components/PostCard.astro`, w
    <RatingBadge collection="posts" id={post.data.id} />
    ```
 
-Checked on EmDash 1.3.0. An older blog template that passes the card only some fields needs the entry id passed in as a prop instead.
+Checked on EmDash 1.3.1. An older blog template that passes the card only some fields needs the entry id passed in as a prop instead.
 
 A badge shows nothing for a post with no rating, so it is safe on every card. Many badges on one page load with one request.
 

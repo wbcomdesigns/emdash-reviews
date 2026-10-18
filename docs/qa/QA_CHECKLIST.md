@@ -2,7 +2,7 @@
 
 One living list of flow-level cases. Walk all of it before every release. When you add or fix behaviour, add or change its case in the same pull request. There are no per-release QA files.
 
-**Last walk:** 2026-10-19, 0.2.1 on the plugin lab :4331 (EmDash 1.3.0, blog template, file install), dev server and a production build (`node dist/server/entry.mjs`, no mail provider).
+**Last walk:** 2026-10-19, 0.2.1 on the plugin lab :4331 (EmDash 1.3.0, blog template, file install), plus fresh registry sites on 1.3.0 and 1.3.1, dev server and a production build (`node dist/server/entry.mjs`, no mail provider).
 
 Walked in the browser: post page as a guest with no visitor address (3 published reviews listed behind 600 waiting, sign-in line instead of the form) at 1440 and 390, light and dark; guest with `trustedProxyHeaders` and `X-Forwarded-For` writes a review (pending thanks); subscriber with no address writes as their account; My reviews as guest (plain sign-in box, 28px gutter at 390) and as subscriber; home page badges; admin Waiting with Set up visitor pages, then Visitor pages are set up; Settings guest banner (production build, no address) and absent with an address; Email tab no-provider banner (production build). Dark Submit review measured 19:1, light 17.9:1.
 
@@ -93,10 +93,10 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | H-1 | Guest on a host that passes no visitor address (Node without `trustedProxyHeaders`) | Sign in to write a review. instead of the form. Settings shows Guests are asked to sign in on this hosting |
 | H-2 | Same with `trustedProxyHeaders` set and the header sent | Guest form shows and a review waits for approval |
 | H-3 | 600 waiting reviews and 3 published on one page | The 3 show, the rating stays, Waiting says 600 |
-| H-4 | Save the Email tab with the notice on, on a site with no mail provider | Saved, but no notice will be sent. The tab shows This site has no email provider |
+| H-4 | Save the Email tab, then Send a test notice, on a site with no mail provider | Save says Saved. and sends nothing. The test says No notice was sent and the tab shows This site has no email provider until a test works |
 | H-5 | Open Waiting on a new install | Set up visitor pages with the kit command for this version; after Visitor pages are set up, only the Install guide link |
 | H-6 | `/account/reviews/` as a guest at 390 | Plain sign-in box, same side gutter as the header |
-| H-7 | Run `scripts/add-to-site.sh` twice on a fresh blog site, wording file changed in between | Second run saves `reviews-strings.ts.bak-YYYYMMDD`, keeps `ReviewsLayout.astro`, prints file names and import paths |
+| H-7 | Run `scripts/add-to-site.sh` twice on a fresh blog site, wording file changed in between | Second run saves `reviews-strings.ts.bak-<date>-<time>` only for an edited file (an untouched older release file is replaced quietly), keeps `ReviewsLayout.astro`, prints file names and import paths |
 
 ## Known gaps
 

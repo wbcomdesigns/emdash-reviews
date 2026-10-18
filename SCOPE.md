@@ -99,7 +99,7 @@ Do not build these. If a card seems to need one, stop and ask the owner.
 - Importing reviews from other platforms
 - Verified-buyer badges
 - Any paid or Pro feature
-- Email to reviewers or to anyone but the site admin. The one email this plugin sends is the hourly "reviews are waiting" notice, and only when the site has mail set up. Saving the Email tab with the notice on also sends one test notice to that same owner address (0.2.1): a sandboxed plugin can only learn whether the site has a mail provider by sending, and Settings must say plainly when it has none
+- Email to reviewers or to anyone but the site admin. The one email this plugin sends is the hourly "reviews are waiting" notice, and only when the site has mail set up. The owner can also press Send a test notice on the Email tab (0.2.1): it sends one notice to the saved owner address, because a sandboxed plugin can only learn whether the site has a mail provider by sending. Saving never sends
 - A Report link on reviews
 - Portable Text blocks or anything that needs a native plugin
 - Injecting scripts, styles or HTML into pages from the plugin

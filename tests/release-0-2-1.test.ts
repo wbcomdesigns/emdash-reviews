@@ -255,7 +255,7 @@ describe("first admin screen", () => {
 		const first = blocksText(await rt.admin.loadPage("/waiting"));
 		const version = rt.manifest.version;
 		expect(first).toContain("Set up visitor pages");
-		const command = `kit="$(mktemp -d)" && git clone --branch v${version} --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .`;
+		const command = `kit="$(mktemp -d)" &&\n  git clone --branch v${version} --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&\n  "$kit/emdash-reviews/scripts/add-to-site.sh" .`;
 		expect(first).toContain(JSON.stringify(command).slice(1, -1));
 		expect(first).not.toContain("/tmp/");
 		expect(first).toContain("/account/reviews/");
@@ -264,25 +264,41 @@ describe("first admin screen", () => {
 		expect(done).not.toContain("Set up visitor pages");
 		expect(done).toContain("Install guide");
 		expect(blocksText(await rt.admin.loadPage("/waiting"))).not.toContain("Set up visitor pages");
+		expect(done).toContain("Show the setup steps again");
+		const again = blocksText(await call("admin", { type: "block_action", action_id: "kit_again", page: "/waiting" }));
+		expect(again).toContain("Set up visitor pages");
 	});
 });
 
 describe("email notice without a mail provider", () => {
-	it("says plainly when no notice can be sent, and the banner and toast agree", async () => {
-		const { call } = await site();
+	it("saves without sending, and Send a test notice drives the toast and the banner", async () => {
+		const { call, rt } = await site();
 		const saved = (await call("admin", {
 			type: "form_submit",
 			action_id: "save_notify",
 			values: { notify: true, notify_to: "owner@example.com" },
 			page: "/settings",
 		})) as { toast: { message: string }; blocks: unknown };
-		// The test host may or may not have a mail provider. The plugin's rule: a save says which, and Settings agrees.
-		if (saved.toast.message.startsWith("Saved, but no notice will be sent")) {
-			expect(blocksText(saved)).toContain("This site has no email provider");
+		expect(saved.toast.message).toBe("Saved.");
+		expect(await rt.inspect.kv.get("mail_status")).toBeNull();
+		expect(blocksText(saved)).toContain("Use Send a test notice to check that this site can send email.");
+		const tested = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as {
+			toast: { message: string };
+			blocks: unknown;
+		};
+		// The test host may or may not have a mail provider. The plugin's rule: the toast and the banner agree.
+		if (tested.toast.message === "No notice was sent: this site has no email provider.") {
+			expect(blocksText(tested)).toContain("This site has no email provider");
 		} else {
-			expect(saved.toast.message).toBe("Email notice saved. A test notice went to owner@example.com.");
-			expect(blocksText(saved)).not.toContain("This site has no email provider");
+			expect(tested.toast.message).toBe("Test notice sent to owner@example.com.");
+			expect(blocksText(tested)).not.toContain("This site has no email provider");
 		}
+	});
+
+	it("asks for a saved address before a test notice", async () => {
+		const { call } = await site();
+		const tested = (await call("admin", { type: "block_action", action_id: "test_notice", page: "/settings" })) as { toast: { message: string } };
+		expect(tested.toast.message).toBe("Save the address the notice should go to first.");
 	});
 
 	it("remembers a send that found no provider and shows it on Settings", async () => {

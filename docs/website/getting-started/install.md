@@ -13,9 +13,9 @@ Stop the dev server and start it again. **Registry** now shows in the admin menu
 
 **2. The plugin is the engine. Visitor pages come from its site kit.** A registry plugin cannot add pages to your site. Until you copy the kit, its addresses (for example `/account/reviews/`) show your site's 404 page. That is expected. The kit copy below takes one command.
 
-**3. You need Node 22.16 or later** for the `npx emdash seed` step. WB Reviews has no seed step: it uses the content types your site already has.
+**3. You need Node 22.16 or later** for the `npx emdash seed` step. WB Reviews has no seed step.
 
-Checked on EmDash 1.3.0 with the `blog` template, Node and Cloudflare.
+Checked on EmDash 1.3.1 with the `blog` template on Node. The Cloudflare lines follow EmDash's own guide; we have not run them on a Cloudflare site yet.
 
 ## Install
 
@@ -23,12 +23,14 @@ Checked on EmDash 1.3.0 with the `blog` template, Node and Cloudflare.
 2. From your site's root folder, get the kit for the version you just installed and copy it in:
 
    ```bash
-   kit="$(mktemp -d)" && git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .
+   kit="$(mktemp -d)" &&
+     git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+     "$kit/emdash-reviews/scripts/add-to-site.sh" .
    ```
 
    (`mktemp -d` makes a fresh folder only you can write to, and `&&` runs the script only when the clone worked. Never clone into a fixed `/tmp/<name>`: on a shared machine someone else can create it first.)
 
-   The script copies the kit, never replaces a newer shared file another Wbcom plugin already copied, keeps a backup of any wording file you changed, creates the content types the plugin needs (if any), and prints the exact lines to paste into your templates, with the file names.
+   The script copies the kit, never replaces a newer shared file another Wbcom plugin already copied, keeps a backup of the wording file only when you changed it yourself, creates the content types the plugin needs (if any), and prints the exact lines to paste into your templates, with the file names.
 3. Paste the lines it printed. Restart the dev server.
 4. Add the menu links it printed in Admin, Menus.
 5. Open the plugin in the admin and follow its first screen.
@@ -43,7 +45,7 @@ After every plugin update, run step 2 again with the new tag.
 | `src/components/RatingBadge.astro` | The small star rating for cards |
 | `src/components/MyReviews.astro` and `src/pages/account/reviews.astro` | **My reviews** at `/account/reviews/` |
 | `src/layouts/ReviewsLayout.astro` | The page shell for My reviews. Yours after the first copy: the script never replaces it |
-| `src/lib/reviews-strings.ts` | Every word a visitor sees. A changed copy is saved as `reviews-strings.ts.bak-YYYYMMDD` before it is replaced |
+| `src/lib/reviews-strings.ts` | Every word a visitor sees. If you edited it, your copy is saved as `reviews-strings.ts.bak-<date>-<time>` before it is replaced. An untouched copy from an older release is replaced without a word |
 | `src/styles/reviews.css` | The reviews look |
 | `src/lib/wbcom-kit.ts`, `src/styles/wbcom-base.css` | Shared by every Wbcom plugin. Copied only when your site has none or an older one |
 | `src/reviews-block/` | Optional in-text blocks, off until you add them to `astro.config.mjs` |

@@ -2,7 +2,7 @@
 
 The plugin is the engine. This folder is what puts reviews on your visitors' pages: a registry plugin cannot add pages or CSS by itself.
 
-Checked on EmDash 1.3.0 with the `blog` template.
+Checked on EmDash 1.3.1 with the `blog` template on Node.
 
 ## Install from the registry
 
@@ -10,10 +10,12 @@ Checked on EmDash 1.3.0 with the `blog` template.
 2. From your site's root folder, get the kit for the version you installed and copy it in:
 
    ```bash
-   kit="$(mktemp -d)" && git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" && "$kit/emdash-reviews/scripts/add-to-site.sh" .
+   kit="$(mktemp -d)" &&
+     git clone --branch v0.2.1 --depth 1 https://github.com/wbcomdesigns/emdash-reviews "$kit/emdash-reviews" &&
+     "$kit/emdash-reviews/scripts/add-to-site.sh" .
    ```
 
-   The script never replaces a newer shared file (`wbcom-kit.ts`, `wbcom-base.css`) another Wbcom plugin copied, never replaces `src/layouts/ReviewsLayout.astro` once it exists, and saves a changed `reviews-strings.ts` as `reviews-strings.ts.bak-YYYYMMDD` before replacing it.
+   The script never replaces a newer shared file (`wbcom-kit.ts`, `wbcom-base.css`) another Wbcom plugin copied, never replaces `src/layouts/ReviewsLayout.astro` once it exists, and saves `reviews-strings.ts` as `reviews-strings.ts.bak-<date>-<time>` before replacing it only when you edited it.
 3. Paste the lines it prints. On the blog template:
 
    In `src/pages/posts/[slug].astro`:
