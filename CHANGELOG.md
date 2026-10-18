@@ -17,7 +17,7 @@ Guests now need a visitor address from the host. Copy the kit again after you up
 - Improve  - The reviews section keeps the same space and rule above it as the blog template's Discussion section.
 - Fix      - Published reviews and the rating stay right however many reviews are waiting, and pages with over 500 reviews count them all.
 - Fix      - The review list and the rating badge show nothing for an unpublished page or a closed content type.
-- Fix      - Delete a guest's reviews by email removes every match, not only the first 100.
+- Security - Delete a guest's reviews by email removes every match, not only the first 100, and also clears that guest's waiting edit on another guest's review.
 - Fix      - When a second guest writes from the same address, the change waits with their own name, and Waiting shows the new name.
 - Improve  - A post page asks a new member-only route, me, whether the visitor is signed in, instead of loading their whole review list.
 - Improve  - The review list reads one page of reviews per request; the bars and counts come from the stored rating.

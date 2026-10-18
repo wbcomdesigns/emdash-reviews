@@ -174,7 +174,7 @@ async function listed(ctx: PluginContext, view: View) {
 	const needle = view.q.toLowerCase();
 	if (needle) {
 		items = items.filter((row) =>
-			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.owner_reply].some((value) =>
+			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.pending_author, row.email, row.pending_email, row.owner_reply].some((value) =>
 				asString(value).toLowerCase().includes(needle),
 			),
 		);
@@ -383,7 +383,7 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 						action_id: "q",
 						label: "Find",
 						initial_value: current.q,
-						placeholder: "Word in the review or the name",
+						placeholder: "Word in the review, a name or an email",
 					},
 				],
 				submit: { label: "Find", action_id: "find" },
@@ -625,7 +625,30 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				if (!gone) break;
 				erased += gone;
 			}
-			if (!erased) {
+			// The same address can also sit in a pending edit on another guest's published review (one
+			// visitor address, two people). Clear that edit; the published review is the other person's and stays.
+			const cleared = new Set<string>();
+			for (;;) {
+				const batch = rows(await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 }));
+				const fresh = batch.filter((row) => !cleared.has(row.id));
+				if (!fresh.length) break;
+				for (const row of fresh) {
+					const { id, ...data } = row;
+					await ctx.storage.reviews.put(id, {
+						...data,
+						pending_change: false,
+						pending_stars: null,
+						pending_title: "",
+						pending_body: "",
+						pending_has_text: false,
+						pending_author: "",
+						pending_email: "",
+						rev: crypto.randomUUID(),
+					});
+					cleared.add(id);
+				}
+			}
+			if (!erased && !cleared.size) {
 				return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
 					message: "No reviews with that email.",
 					type: "info",
@@ -633,7 +656,9 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			}
 			for (const entry of entries) await syncRating(ctx, entry);
 			return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
-				message: `Deleted ${erased} ${erased === 1 ? "review" : "reviews"}.`,
+				message:
+					`Deleted ${erased} ${erased === 1 ? "review" : "reviews"}.` +
+					(cleared.size ? ` Removed ${cleared.size} waiting ${cleared.size === 1 ? "change" : "changes"} on other reviews.` : ""),
 				type: "success",
 			});
 		}

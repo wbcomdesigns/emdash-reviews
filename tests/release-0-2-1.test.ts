@@ -193,6 +193,47 @@ describe("member check and erasure", () => {
 		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toBeNull();
 	}, 60_000);
 
+	it("erases a guest's own reviews and their pending edit on another guest's review, past 100 rows", async () => {
+		const { call, rt, live, guestWrite } = await site();
+		await call("admin", { type: "form_submit", action_id: "save_guest_email", values: { ask_guest_email: true }, page: "/settings" });
+		// B's published review, then A (same address) sends an edit that waits on B's row.
+		await guestWrite("198.51.100.40", { name: "Ben", email: "ben@example.com", body: "Ben's words.", stars: 5 });
+		const bId = (await rt.inspect.storage.list("reviews"))[0].id;
+		const bRow = await rt.inspect.storage.get<{ rev: string }>("reviews", bId);
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${bRow!.rev}|${bId}` });
+		await guestWrite("198.51.100.40", { name: "Ana", email: "ana@example.com", body: "Ana's words.", stars: 1 });
+		expect(await rt.inspect.storage.get("reviews", bId)).toMatchObject({ pending_change: true, pending_email: "ana@example.com" });
+		// 120 of A's own reviews on other rows.
+		for (let n = 0; n < 120; n += 1) {
+			await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-ana${n}`, {
+				entry: `posts:${live}`, collection: "posts", entryId: live, status: "pending", stars: 2, body: `Ana ${n}`,
+				has_text: true, email: "ana@example.com", author: "Ana", rev: "r", createdAt: "2026-10-01T00:00:00Z",
+			});
+		}
+		const found = blocksText(await call("admin", { type: "form_submit", action_id: "find", values: { q: "ana@example.com" }, page: "/waiting" }));
+		expect(found).toContain("Ana");
+		const done = (await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "ana@example.com" }, page: "/published" })) as {
+			toast: { message: string };
+		};
+		expect(done.toast.message).toBe("Deleted 120 reviews. Removed 1 waiting change on other reviews.");
+		const left = await rt.inspect.storage.list<Record<string, unknown>>("reviews");
+		expect(left.map((row) => row.id)).toEqual([bId]);
+		expect(left[0].data).toMatchObject({ status: "published", author: "Ben", email: "ben@example.com", body: "Ben's words.", stars: 5, pending_change: false, pending_email: "", pending_author: "", pending_body: "" });
+		expect(JSON.stringify(left[0].data)).not.toContain("Ana");
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 1, items: [{ author: "Ben" }] });
+	}, 60_000);
+
+	it("erases a member's rows, pending edits included, with Delete all my reviews", async () => {
+		const { call, rt, live } = await site();
+		await call("write", { collection: "posts", id: live, stars: 5, body: "Live." }, { method: "POST", user: ana });
+		const id = (await rt.inspect.storage.list("reviews"))[0].id;
+		const row = await rt.inspect.storage.get<{ rev: string }>("reviews", id);
+		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|${id}` });
+		await call("write", { collection: "posts", id: live, stars: 1, body: "Pending edit." }, { method: "POST", user: ana });
+		expect(await call("mine", {}, { method: "DELETE", user: ana })).toMatchObject({ ok: true, erased: 1 });
+		expect(await rt.inspect.storage.list("reviews")).toHaveLength(0);
+	});
+
 	it("keeps a second guest's name on the same address and shows it before approval", async () => {
 		const { call, rt, live, guestWrite } = await site();
 		await guestWrite("198.51.100.30", { name: "Ana Guest", body: "First person." });
