@@ -1,15 +1,13 @@
 ---
+// wb-reviews-kit: WB Reviews kit file. Running add-to-site.sh again replaces it.
 /**
- * My reviews. Copy this file to src/pages/account/reviews.astro.
- * Change the layout import if your site uses a different layout.
- * Link to /account/reviews/ from the site menu as My reviews.
+ * My reviews at /account/reviews/. Add that address to the site menu (Admin, Menus) as My reviews.
+ * The page shell is src/layouts/ReviewsLayout.astro, which is yours to change.
  */
-import Base from "../../layouts/Base.astro";
+import ReviewsLayout from "../../layouts/ReviewsLayout.astro";
 import MyReviews from "../../components/MyReviews.astro";
 ---
 
-<Base title="My reviews" description="Reviews you have written on this site.">
-	<div style="max-width: 40rem; margin-inline: auto; padding: 2rem 1rem;">
-		<MyReviews />
-	</div>
-</Base>
+<ReviewsLayout title="My reviews" description="Reviews you have written on this site.">
+	<MyReviews />
+</ReviewsLayout>

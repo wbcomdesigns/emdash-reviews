@@ -3,26 +3,31 @@ import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
 import { handleAdmin } from "./admin";
 import {
 	allowedCollections,
+	allReviews,
 	entryKey,
-	entryRef,
 	entryRefs,
+	GUEST_UNAVAILABLE,
+	isPublished,
 	MEMBER,
 	MEMBERS_ONLY,
 	rateLimited,
 	RATE_LIMITED,
+	reviewable,
+	sendMail,
 	SIGN_IN,
 	syncRating,
 	waitingCount,
 	type Member,
 } from "./core";
 import { asNumber, asRecord, asString, nowIso, plainText, rows } from "./util";
+import { guestKey } from "./visitor-key";
 
 // Short enough that the moderation table can show every character an admin approves.
 const TITLE_MAX = 120;
 const BODY_MAX = 1000;
 const NAME_MAX = 80;
 const LIST_PAGE = 10;
-const LIST_SCAN = 500;
+const LIST_MAX_PAGE = 50;
 const NOTIFY_CRON = "0 * * * *";
 
 const NOT_REVIEWABLE = {
@@ -41,11 +46,6 @@ function target(input: unknown): { collection: string; id: string } | null {
 	const collection = asString(raw.collection);
 	const id = asString(raw.id);
 	return collection && id ? { collection, id } : null;
-}
-
-async function reviewable(ctx: PluginContext, collection: string, id: string): Promise<boolean> {
-	if (!(await allowedCollections(ctx)).includes(collection)) return false;
-	return (await entryRef(ctx, collection, id))?.published === true;
 }
 
 function clampStars(value: unknown): number | null {
@@ -71,20 +71,16 @@ async function visitorSalt(ctx: PluginContext): Promise<string> {
 	return salt;
 }
 
-/** One guest identity per trusted address, or per browser cookie when the host has none. */
-async function guestWho(
-	ctx: PluginContext,
-	routeCtx: { requestMeta?: { ip?: string | null } },
-	raw: Record<string, unknown>,
-): Promise<{ id: string; visitor: string }> {
-	const salt = await visitorSalt(ctx);
-	const ip = asString(routeCtx.requestMeta?.ip);
-	if (ip && ip !== "unknown") {
-		const visitor = await sha256Hex(`${salt}:${ip}`);
-		return { id: `v-${visitor}`, visitor };
-	}
-	const token = asString(raw.visitor) || crypto.randomUUID();
-	const visitor = await sha256Hex(`${salt}:c:${token}`);
+type Meta = { requestMeta?: { ip?: string | null } };
+
+/** The visitor address EmDash passed in, or null. Only Cloudflare, or a site with trustedProxyHeaders, passes one. */
+function visitorAddress(routeCtx: Meta): string | null {
+	return guestKey(asString(routeCtx.requestMeta?.ip));
+}
+
+/** One guest per visitor address (an IPv6 /64), hashed with a per-site salt. Never the address itself. */
+async function guestWho(ctx: PluginContext, address: string): Promise<{ id: string; visitor: string }> {
+	const visitor = await sha256Hex(`${await visitorSalt(ctx)}:${address}`);
 	return { id: `v-${visitor}`, visitor };
 }
 
@@ -118,6 +114,9 @@ async function saveReview(ctx: PluginContext, input: SaveInput): Promise<{ ok: t
 			pending_title: input.title,
 			pending_body: input.body,
 			pending_has_text: hasText,
+			// Guests are keyed by address, so a second person on one address can land here: keep their name.
+			pending_author: input.author,
+			pending_email: input.email,
 			rev: crypto.randomUUID(),
 		});
 		return { ok: true, status: "pending" };
@@ -134,6 +133,7 @@ async function saveReview(ctx: PluginContext, input: SaveInput): Promise<{ ok: t
 		body: input.body,
 		has_text: hasText,
 		status: moderate ? "pending" : "published",
+		publishedAt: moderate ? "" : asString(existing.publishedAt) || nowIso(),
 		rev: crypto.randomUUID(),
 		createdAt,
 		guest: input.guest,
@@ -164,19 +164,15 @@ function publicItem(row: Record<string, unknown>) {
 async function notifyWaiting(ctx: PluginContext): Promise<void> {
 	if ((await ctx.settings.get<boolean>("notify")) !== true) return;
 	if (!(await waitingCount(ctx))) return;
-	if (!ctx.email) return;
 	const to = asString(await ctx.settings.get<string>("notify_to"));
 	if (!to.includes("@")) return;
 	const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
-	try {
-		await ctx.email.send({
-			to,
-			subject: "Reviews are waiting",
-			text: `Reviews are waiting for approval${site ? ` on ${site}` : ""}.\n\nSign in to your site admin and open Reviews, then Waiting.`,
-		});
-	} catch {
-		// Tried this hour. The next run tries again.
-	}
+	// A failed send is tried again next hour; "no provider" is remembered so Settings can say so.
+	await sendMail(ctx, {
+		to,
+		subject: "Reviews are waiting",
+		text: `Reviews are waiting for approval${site ? ` on ${site}` : ""}.\n\nSign in to your site admin and open Reviews, then Waiting.`,
+	});
 }
 
 const plugin: SandboxedPlugin = {
@@ -223,15 +219,26 @@ const plugin: SandboxedPlugin = {
 	routes: {
 		health: {
 			public: true,
-			handler: async (_routeCtx, ctx) => ({
-				ok: true,
-				plugin: ctx.plugin.id,
-				version: ctx.plugin.version,
-				collections: await allowedCollections(ctx),
-				pending: await waitingCount(ctx),
-				who: whoSetting(await ctx.settings.get<string>("who")),
-				askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
-			}),
+			handler: async (routeCtx, ctx) => {
+				const setting = whoSetting(await ctx.settings.get<string>("who"));
+				const hostAddress = visitorAddress(routeCtx as Meta) !== null;
+				const guestWrites = setting === "anyone" && hostAddress;
+				return {
+					ok: true,
+					plugin: ctx.plugin.id,
+					version: ctx.plugin.version,
+					collections: await allowedCollections(ctx),
+					// Who can write on this request. "members" also when the host gives no visitor address, so a
+					// kit from 0.2.0 (which knows only this field) shows its sign-in line instead of a form that fails.
+					who: guestWrites ? "anyone" : "members",
+					guestWrites,
+					// False when the host passes EmDash no visitor address: the kit then says "Sign in to write a review."
+					hostAddress,
+					// The owner's setting, so the kit can say "Only members can review this page." when that is the reason.
+					setting,
+					askEmail: (await ctx.settings.get<boolean>("ask_guest_email")) === true,
+				};
+			},
 		},
 		// Published reviews for one entry, with its rating, bars, and one page of text reviews.
 		list: {
@@ -239,43 +246,42 @@ const plugin: SandboxedPlugin = {
 			methods: ["GET"],
 			handler: async (routeCtx, ctx) => {
 				const at = target(routeCtx.input);
-				if (!at) return { ok: true, items: [], average: 0, count: 0, total: 0, page: 1, sort: "newest", bars: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+				if (!at || !(await reviewable(ctx, at.collection, at.id))) {
+					return { ok: true, items: [], average: 0, count: 0, total: 0, page: 1, pages: 1, sort: "newest", bars: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+				}
 				const raw = asRecord(routeCtx.input);
 				const sortRaw = asString(raw.sort);
 				const sort = sortRaw === "highest" || sortRaw === "lowest" ? sortRaw : "newest";
-				const page = Math.max(1, asNumber(raw.page) ?? 1);
 				const entry = entryKey(at.collection, at.id);
-				const [found, rating] = await Promise.all([
-					ctx.storage.reviews.query({ where: { entry }, orderBy: { createdAt: "desc" }, limit: LIST_SCAN }),
-					ctx.storage.ratings.get(entry),
-				]);
-				const published = rows(found).filter((row) => row.status === "published");
-				const bars = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-				for (const row of published) {
-					const stars = clampStars(row.stars);
-					if (stars === 1 || stars === 2 || stars === 3 || stars === 4 || stars === 5) bars[stars] += 1;
+				let rating = asRecord(await ctx.storage.ratings.get(entry));
+				// Build the rating row once when it is from 0.2.0 or earlier (no bars), or missing while published
+				// reviews exist (0.2.0 could delete it when waiting reviews filled its one read).
+				const stale = asNumber(rating.count)
+					? !Array.isArray(rating.bars)
+					: (await ctx.storage.reviews.count({ entry, status: "published" })) > 0;
+				if (stale) {
+					await syncRating(ctx, entry);
+					rating = asRecord(await ctx.storage.ratings.get(entry));
 				}
-				const listed = published.filter((row) =>
-					row.has_text === false ? false : row.has_text === true || Boolean(asString(row.title) || asString(row.body)),
-				);
-				listed.sort((a, b) => {
-					if (sort === "highest") return (asNumber(b.stars) ?? 0) - (asNumber(a.stars) ?? 0);
-					if (sort === "lowest") return (asNumber(a.stars) ?? 0) - (asNumber(b.stars) ?? 0);
-					return asString(b.createdAt).localeCompare(asString(a.createdAt));
-				});
-				const total = listed.length;
-				const pages = Math.max(1, Math.ceil(total / LIST_PAGE) || 1);
-				const current = Math.min(page, pages);
+				const counts = Array.isArray(rating.bars) ? rating.bars.map((n) => asNumber(n) ?? 0) : [0, 0, 0, 0, 0];
+				const bars = { 1: counts[0], 2: counts[1], 3: counts[2], 4: counts[3], 5: counts[4] };
+				const total = asNumber(rating.text_count) ?? 0;
+				const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
+				// ponytail: page N walks N*10 rows in reads of 100, capped at page 50 (500 rows). Add an offset or a
+				// cursor in the kit if visitors ever need to page deeper than that.
+				const current = Math.min(Math.max(1, Math.floor(asNumber(raw.page) ?? 1)), pages, LIST_MAX_PAGE);
+				const orderBy: Record<string, "asc" | "desc"> =
+					sort === "newest" ? { createdAt: "desc" } : { stars: sort === "highest" ? "desc" : "asc" };
+				const listed = await allReviews(ctx, { entry, status: "published", has_text: true }, orderBy, current * LIST_PAGE);
 				const items = listed.slice((current - 1) * LIST_PAGE, current * LIST_PAGE).map(publicItem);
-				const summary = asRecord(rating);
 				return {
 					ok: true,
 					items,
-					average: asNumber(summary.average) ?? 0,
-					count: asNumber(summary.count) ?? 0,
+					average: asNumber(rating.average) ?? 0,
+					count: asNumber(rating.count) ?? 0,
 					total,
 					page: current,
-					pages,
+					pages: Math.min(pages, LIST_MAX_PAGE),
 					sort,
 					bars,
 				};
@@ -288,18 +294,31 @@ const plugin: SandboxedPlugin = {
 			handler: async (routeCtx, ctx) => {
 				const raw = asRecord(routeCtx.input);
 				const collection = asString(raw.collection);
+				const ratings: Record<string, { average: number; count: number }> = {};
+				if (!(await allowedCollections(ctx)).includes(collection)) return { ok: true, ratings };
 				const ids = asString(raw.ids)
 					.split(",")
 					.map((id) => id.trim())
 					.filter(Boolean)
 					.slice(0, 50);
-				const found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
-				const ratings: Record<string, { average: number; count: number }> = {};
-				ids.forEach((id, index) => {
-					const row = asRecord(found[index]);
-					if (asNumber(row.count)) {
-						ratings[id] = { average: asNumber(row.average) ?? 0, count: asNumber(row.count) ?? 0 };
-					}
+				let found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
+				// A rating row 0.2.0 deleted while published reviews remained is rebuilt, as list does.
+				// ponytail: one count per card with no rating row (50 at most); drop once 0.2.0 sites are gone.
+				const missing = ids.filter((id, index) => !found[index]);
+				const lost = await Promise.all(
+					missing.map(async (id) => (await ctx.storage.reviews.count({ entry: entryKey(collection, id), status: "published" })) > 0),
+				);
+				if (lost.some(Boolean)) {
+					for (const [index, id] of missing.entries()) if (lost[index]) await syncRating(ctx, entryKey(collection, id));
+					found = await Promise.all(ids.map((id) => ctx.storage.ratings.get(entryKey(collection, id))));
+				}
+				const rated = ids.filter((id, index) => asNumber(asRecord(found[index]).count));
+				// One content read per rated card (50 at most), so a draft or unpublished entry shows no badge.
+				const live = await Promise.all(rated.map((id) => isPublished(ctx, collection, id)));
+				rated.forEach((id, index) => {
+					if (!live[index]) return;
+					const row = asRecord(found[ids.indexOf(id)]);
+					ratings[id] = { average: asNumber(row.average) ?? 0, count: asNumber(row.count) ?? 0 };
 				});
 				return { ok: true, ratings };
 			},
@@ -338,6 +357,10 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			handler: async (routeCtx, ctx) => {
 				if (whoSetting(await ctx.settings.get<string>("who")) === "members") return MEMBERS_ONLY;
+				// Owner decision 2026-10-16: with no visitor address there is no working per-guest limit,
+				// so guests are asked to sign in. Never fall back to a browser-sent id or a shared bucket.
+				const address = visitorAddress(routeCtx as Meta);
+				if (!address) return GUEST_UNAVAILABLE;
 				const at = target(routeCtx.input);
 				if (!at) return NOT_REVIEWABLE;
 				const raw = asRecord(routeCtx.input);
@@ -350,7 +373,7 @@ const plugin: SandboxedPlugin = {
 				if (!(await reviewable(ctx, at.collection, at.id))) return NOT_REVIEWABLE;
 				const stars = clampStars(raw.stars);
 				if (stars === null) return NEED_STARS;
-				const guest = await guestWho(ctx, { requestMeta: routeCtx.requestMeta as { ip?: string | null } | undefined }, raw);
+				const guest = await guestWho(ctx, address);
 				if (await rateLimited(ctx, `write:${guest.id}`)) return RATE_LIMITED;
 				return saveReview(ctx, {
 					entry: entryKey(at.collection, at.id),
@@ -367,6 +390,12 @@ const plugin: SandboxedPlugin = {
 					alwaysPending: true,
 				});
 			},
+		},
+		// The kit's "is this visitor signed in?" check: one cheap answer, no reads.
+		me: {
+			permission: MEMBER,
+			methods: ["GET"],
+			handler: async (routeCtx) => (routeCtx.user ? { ok: true } : SIGN_IN),
 		},
 		// A member's own reviews. DELETE erases them all. Kept for 0.2.0 My reviews.
 		mine: {
@@ -390,7 +419,7 @@ const plugin: SandboxedPlugin = {
 					for (const entry of entries) await syncRating(ctx, entry);
 					return { ok: true, erased };
 				}
-				const found = await ctx.storage.reviews.query({ where: { member_id: user.id }, limit: 100 });
+				const found = await ctx.storage.reviews.query({ where: { member_id: user.id }, orderBy: { createdAt: "desc" }, limit: 100 });
 				const mine = rows(found);
 				const refs = await entryRefs(ctx, mine);
 				return {
@@ -412,7 +441,7 @@ const plugin: SandboxedPlugin = {
 			},
 		},
 		admin: {
-			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx, routeCtx),
+			handler: async (routeCtx, ctx) => handleAdmin(routeCtx.input, ctx, routeCtx as Parameters<typeof handleAdmin>[2]),
 		},
 	},
 };

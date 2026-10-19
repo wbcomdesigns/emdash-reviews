@@ -31,7 +31,7 @@ Guest reviews always wait for approval, even when this is off. Reviews from sign
 
 Save shows "Who can review saved."
 
-Under the options you read two notes: "Anyone is the default. A guest review always waits for approval." and "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker."
+Under the options you read two notes: "Anyone is the default. A guest review always waits for approval." and "Guests are counted by their visitor address, which the host must pass to EmDash. Where it does not, guests are asked to sign in." When this site gets no visitor address, a banner at the top of Settings says **Guests are asked to sign in on this hosting**. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
 
 ## Email
 
@@ -40,7 +40,7 @@ Under the options you read two notes: "Anyone is the default. A guest review alw
 | Email me when reviews are waiting | Sends the hourly notice while reviews are waiting | Off |
 | Send the notice to | The address that gets the notice | Empty |
 
-Switch the notice on and type the address in the same step, then **Save**. Save shows "Email notice saved." Switching it on without an address says "Add the email address the notice should go to." and saves nothing. A plugin cannot read the site admin's address, so there is no default. The notice goes out at most once an hour and has no review text and no link. See [Dashboard card and email](../features/dashboard-and-email.md).
+Switch the notice on and type the address in the same step, then **Save**. Save shows "Saved." and sends nothing. Use **Send a test notice** on the **Email** tab to check that the site can send email: it sends one notice to the saved address. If the site has no email provider, it says "No notice was sent: this site has no email provider." and the tab shows **This site has no email provider** until a test works. Saving the tab only saves ("Saved.") and sends nothing. Set up a provider, for example the official Resend plugin, then send a test again. Switching it on without an address says "Add the email address the notice should go to." and saves nothing. A plugin cannot read the site admin's address, so there is no default. The notice goes out at most once an hour and has no review text and no link. See [Dashboard card and email](../features/dashboard-and-email.md).
 
 ## Fixed limits
 

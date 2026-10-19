@@ -1,4 +1,4 @@
-# Handoff: WB Reviews (2026-10-14, 0.1.4 in progress)
+# Handoff: WB Reviews (2026-10-19, 0.2.1 in review)
 
 You are the one agent for this repo. Read this, then work.
 
@@ -10,21 +10,21 @@ You are the one agent for this repo. Read this, then work.
 4. `SCOPE.md` here. The corrections section wins over older lines.
 5. `PLAN.md` here.
 
-## Where it stands
+## Where it stands (2026-10-19)
 
-**Live on the registry:** 0.1.3. Do not overwrite 0.1.0, 0.1.1, 0.1.2 or 0.1.3.
+**Live on the registry:** 0.2.0. Do not overwrite any published version.
 
-- Package in this branch: `@vapvarun.bsky.social/reviews@0.1.4` (not published)
-- Page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
-
-Closed in 0.1.2: #28 #29 #30.
-Closed in 0.1.3: #31 #32 #33 #34 #36. #35 deferred to #4 (My reviews is 0.2.0).
-This branch: #39 admin standard.
+**Branch 0.2.1 (PR open, not merged, not tagged, not published):** closes #56 to #62.
+- Guests need a visitor address (shared `src/visitor-key.ts`, copied from the starter byte for byte). No address: `GUEST_UNAVAILABLE`, health `guestWrites: false`, kit shows sign-in, Settings banner.
+- Every review read filters by status in the query and pages through all rows (`allReviews` in `src/core.ts`). New storage index `pending_change`.
+- Waiting shows Set up visitor pages until `kit_done` is set in kv.
+- Mail: a sandboxed plugin always has `ctx.email`; only a send tells whether a provider exists. `sendMail` stores `mail_status`; saving the Email tab sends one test notice.
+- `scripts/add-to-site.sh` is the one kit install; `apply-kit.sh` calls it for the lab.
 
 ## Next
 
-- 0.2.0 is live (2026-10-15): My reviews at `/account/reviews/`, optional Reviews and Rating blocks for post text (trusted install), shared kit 5.
-- No open issues. Findings after a release: patch only if a site owner is exposed, otherwise a card for the next milestone.
+- Owner QA of 0.2.1, then merge, tag v0.2.1, publish, update-package.
+- Findings after a release: patch only if a site owner is exposed, otherwise a card for the next milestone.
 
 ## How to work
 

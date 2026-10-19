@@ -2,102 +2,101 @@
 
 **Included in Free.** WB Reviews has no paid version.
 
-Installing takes three steps: the plugin in admin, the site kit in your site's code, and the components on your templates. The second and third steps need someone who can edit the site's files.
+## Before you install
 
-## Before you start
+**1. Your site needs a sandbox runner.** Registry plugins run in a sandbox. Until the site has one, Admin, Plugins shows "No plugins configured" and there is no Registry in the menu.
 
-- Your site runs EmDash 1.2 or later.
-- Your site loads plugins from the registry. In `astro.config.mjs`, EmDash needs a sandbox runner. Sites made with `npm create emdash@latest` from version 1.2 already have one. Without a runner, EmDash skips sandboxed plugins at startup.
+- **Node:** in your site, run `npm install @emdash-cms/sandbox-workerd workerd`, then add `sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",` inside `emdash({ ... })` in `astro.config.mjs`.
+- **Cloudflare:** add `import { sandbox } from "@emdash-cms/cloudflare";` and `sandboxRunner: sandbox(),`. It needs the Workers Paid plan and a `worker_loaders` binding named `LOADER` in your Wrangler config. The EmDash Cloudflare templates ship that binding commented out. EmDash's guide: https://docs.emdashcms.com/deployment/plugin-sandbox/#cloudflare-workers
 
-## Step 1: install the plugin
+Stop the dev server and start it again. **Registry** now shows in the admin menu.
 
-1. In admin, open **Plugins**, then **Registry**.
-2. Search for **WB Reviews** and choose **Install**.
-3. EmDash lists what the plugin asks for. WB Reviews asks for three things: to read your content (so it can name the page a review belongs to), to read your content types (so you can tick them by name), and to send email (for the optional waiting notice). Confirm the install.
+**2. The plugin is the engine. Visitor pages come from its site kit.** A registry plugin cannot add pages to your site. Until you copy the kit, its addresses (for example `/account/reviews/`) show your site's 404 page. That is expected. The kit copy below takes one command.
 
-A **Reviews** group with **Waiting**, **Published** and **Settings** now appears in the admin menu.
+**3. You need Node 22.16 or later** for the `npx emdash seed` step. WB Reviews has no seed step.
 
-## Step 2: copy the site kit
+Checked on EmDash 1.3.1 with the `blog` template on Node. The Cloudflare lines follow EmDash's own guide; we have not run them on a Cloudflare site yet.
 
-The kit is in the `site-kit/` folder of the [WB Reviews repository](https://github.com/wbcomdesigns/emdash-reviews), at the tag of the version you installed. From your site's root folder:
+## Install
 
-```bash
-K=path/to/emdash-reviews/site-kit
-mkdir -p src/lib src/styles src/components
-cp $K/lib/reviews-strings.ts src/lib/
-cp $K/styles/reviews.css src/styles/
-cp $K/components/Reviews.astro $K/components/RatingBadge.astro $K/components/MyReviews.astro src/components/
-mkdir -p src/pages/account
-cp $K/pages/account/reviews.astro src/pages/account/reviews.astro
+1. Admin, Registry, search **WB Reviews**, Install, then accept the permissions. WB Reviews asks to read your content (to name the page a review belongs to), to read your content types (so you tick them by name), and to send email (for the optional waiting notice).
+2. From your site's root folder, get the kit for the version you just installed and copy it in:
 
-# The two shared files are used by every Wbcom plugin. Line 1 carries a number
-# (wbcom-shared: N). Copy only when the site has no copy yet or an older one,
-# so another plugin's newer copy is never replaced.
-shared() { v="$(sed -n '1s/.*wbcom-shared: *\([0-9]*\).*/\1/p' "$1" 2>/dev/null)"; echo "${v:-0}"; }
-newer() { [ ! -f "$2" ] || [ "$(shared "$1")" -ge "$(shared "$2")" ]; }
-newer "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts && cp "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts
-newer "$K/styles/wbcom-base.css" src/styles/wbcom-base.css && cp "$K/styles/wbcom-base.css" src/styles/wbcom-base.css
-```
+   ```bash
+   kit="$(mktemp -d)" &&
+     git clone --depth 1 \
+       --branch v0.2.1 \
+       https://github.com/wbcomdesigns/emdash-reviews \
+       "$kit/emdash-reviews" &&
+     "$kit/emdash-reviews/scripts/add-to-site.sh" .
+   ```
 
-Two files, `wbcom-kit.ts` and `wbcom-base.css`, are shared by every Wbcom plugin. If another Wbcom plugin already copied them, keep the newer copy. The first line of each file carries a number (`wbcom-shared: N`). The last two lines above copy a file only when your site has no copy yet or a lower number. The [kit guide](https://github.com/wbcomdesigns/emdash-reviews/blob/main/site-kit/README.md) has the same script.
+   (`mktemp -d` makes a fresh folder only you can write to, and `&&` runs the script only when the clone worked. Never clone into a fixed `/tmp/<name>`: on a shared machine someone else can create it first.)
 
-Do not copy the `site-kit/lab/` folder. It is a test page for the plugin's developers.
+   The script copies the kit, never replaces a newer shared file another Wbcom plugin already copied, keeps a backup of the wording file only when you changed it yourself, creates the content types the plugin needs (if any), and prints the exact lines to paste into your templates, with the file names.
+3. Paste the lines it printed. Restart the dev server.
+4. Add the menu links it printed in Admin, Menus.
+5. Open the plugin in the admin and follow its first screen.
 
-## Step 3: add the components to your templates
+After every plugin update, run step 2 again with the new tag.
 
-Open the template that shows a single post (in the blog starter, `src/pages/posts/[slug].astro`) and add the reviews where they should appear, usually after the content:
+## What the script copies
+
+| File in your site | What it is |
+| --- | --- |
+| `src/components/Reviews.astro` | Reviews, the rating bars and the form for one entry |
+| `src/components/RatingBadge.astro` | The small star rating for cards |
+| `src/components/MyReviews.astro` and `src/pages/account/reviews.astro` | **My reviews** at `/account/reviews/` |
+| `src/lib/reviews-strings.ts` | Every word a visitor sees |
+| `src/styles/reviews.css` | The reviews look |
+| `src/reviews-block/` | Optional in-text blocks, off until you add them to `astro.config.mjs` |
+| `src/layouts/ReviewsLayout.astro` | The page shell for My reviews. **Kept:** copied once, never replaced |
+| `src/lib/wbcom-kit.ts`, `src/styles/wbcom-base.css` | Shared by every Wbcom plugin. **Kept** when your site has a newer copy; replaced (and said so) when yours is older |
+
+Every other file in the list is **replaced** on each run. If you changed one (its content is not what any release shipped, checked against `site-kit/kit.sums`), the script first saves your copy next to it as `<file>.bak-YYYYMMDD` (with the time added on a second run the same day) and lists every copy it saved. Files you never touched are replaced without a word. Keep your wording in `src/lib/reviews-strings.ts` and your page shell in `ReviewsLayout.astro`, then copy any wording changes back from the backup after an update.
+
+## The lines to paste
+
+On the EmDash `blog` template the script prints these. Each import path is the one that works from that file.
+
+In `src/pages/posts/[slug].astro` (the post page), add to the imports at the top:
 
 ```astro
----
 import Reviews from "../../components/Reviews.astro";
----
+```
+
+and where the reviews should show, for example just above `<section class="post-comments">`:
+
+```astro
 <Reviews collection="posts" id={post.data.id} />
 ```
 
-Use the content type's real name for `collection` and the entry's id for `id`. Do the same in the page template if you want reviews on pages, with `collection="pages"`.
-
-To show the small rating on cards and lists, add the badge:
+In `src/components/PostCard.astro` (the post card), add to the imports at the top:
 
 ```astro
----
-import RatingBadge from "../../components/RatingBadge.astro";
----
+import RatingBadge from "./RatingBadge.astro";
+```
+
+and inside the card, right after these two lines, which end `<span class="post__meta">` (the first `</span>` after it closes the nested reading-time span, not the meta span):
+
+```astro
+				<span>{readingTime}</span>
+			</span>
+```
+
+add:
+
+```astro
 <RatingBadge collection="posts" id={post.data.id} />
 ```
 
-A badge shows nothing for a page that has no rating, so it is safe to add to every card. Many badges on one page load with one request.
+Use `post.data.id`, the entry id. On the blog template `post.id` is the slug and finds no reviews. For pages, use `collection="pages"` in the page template. A badge shows nothing for a page with no rating, and every badge on a page loads with one request.
 
-## For the in-text block
+## Menu link
 
-This is optional. The plugin from the registry does not add a block inside post text. To put **Reviews** or **Rating** in the middle of a post, copy the block and switch it on as trusted site code.
+In Admin, Menus, add a custom link named **My reviews** pointing at `/account/reviews/`. A signed-in member sees each review with its page, stars, text and status, and **Delete all my reviews** asks for a second click. A guest sees **Sign in to see the reviews you have written.** and a sign-in link.
 
-```bash
-mkdir -p src/reviews-block
-cp -R path/to/emdash-reviews/site-kit/blocks/. src/reviews-block/
-```
-
-In `astro.config.mjs`:
-
-```js
-import { reviewsBlock } from "./src/reviews-block/descriptor.mjs";
-
-emdash({
-	plugins: [reviewsBlock()],
-	// sandboxed: [reviews] stays as it is
-});
-```
-
-Restart the site. In a post or page, type `/reviews` and choose **Reviews**, or `/rating` and choose **Rating**. EmDash will not insert a block until a field has a value, so each block includes **What to show**, already set. **Reviews** can also take a heading, and that heading can stay blank. Both show the entry they sit in. Leave this out and the registry plugin works the same.
-
-## My reviews
-
-The copy above adds `/account/reviews/`. A guest sees **Sign in**, and that link brings them back to this page. A signed-in member sees each review with the page name, stars, the text, and a status: **Awaiting approval**, **Published**, or **Not approved**.
-
-**Delete all my reviews** asks for a second click, then removes only that member's reviews. The rating on each page updates at once.
-
-Add a menu link named **My reviews** pointing at `/account/reviews/`. In admin, open **Menus**, add a custom link, and save.
-
-## Step 4: choose what can be reviewed
+## Choose what can be reviewed
 
 1. In admin, open **Reviews**, then **Settings**.
 2. On the **Where** tab, tick the kinds of page visitors can review.
@@ -105,13 +104,49 @@ Add a menu link named **My reviews** pointing at `/account/reviews/`. In admin, 
 
 Until you save, only **Posts** is open. See the [Settings reference](../settings/settings-reference.md).
 
+The first Reviews screen, **Waiting**, shows **Set up visitor pages** with the command for your installed version. Choose **Visitor pages are set up** once the kit is in. A link to this guide stays on the screen.
+
+## Guests and hosting
+
+EmDash gives a plugin the visitor's address only on Cloudflare, or when the site sets `trustedProxyHeaders` inside `emdash({ ... })` in `astro.config.mjs` (for example `trustedProxyHeaders: ["x-real-ip"],`). Without an address, guests are asked to sign in before they can write a review, so one person cannot review many times.
+
+Set `trustedProxyHeaders` only to a header that **your proxy writes itself and replaces** on every request. EmDash reads the first address in that header. Many proxies **add** to `X-Forwarded-For` instead of replacing it (nginx `$proxy_add_x_forwarded_for`, most load balancers), so the first address is whatever the visitor typed, and a guest could review again and again. Behind nginx, set `proxy_set_header X-Real-IP $remote_addr;` and use `trustedProxyHeaders: ["x-real-ip"]`. Behind another proxy, use the header it overwrites with the connecting address. If you are not sure, leave it unset: members can still take part.
+
+```js
+emdash({
+	trustedProxyHeaders: ["x-real-ip"],
+	// sandboxRunner and the rest stay as they are
+});
+```
+
+Without an address, guests see **Sign in to write a review.** instead of the form, members review as normal, and Settings shows **Guests are asked to sign in on this hosting**. The address itself is never stored: a guest is a salted hash of it, and an IPv6 visitor counts by their /64 network.
+
+## Cookie
+
+The review form sets one cookie, `wbr_vid`, a random token with no personal data. It exists only so a site whose plugin is still on the 0.2.0 engine counts one guest per browser. The 0.2.1 engine ignores it and counts guests by visitor address. It will be removed once 0.2.0 engines are gone.
+
+## In the browser console
+
+A guest's console shows one red 401 for `.../me` on each page with reviews, and for `.../mine` on My reviews. That is the kit asking whether the visitor is signed in. The page is fine. A 404 for `.../r_nt2pnhev44oaara3/...` can also show on a site that installed the plugin from local files; the kit then uses the plugin's name.
+
+## For the in-text block
+
+This is optional. The registry plugin does not add a block inside post text. The script already copied the block to `src/reviews-block/`. To switch it on as trusted site code, in `astro.config.mjs`:
+
+```js
+import { reviewsBlock } from "./src/reviews-block/descriptor.mjs";
+
+emdash({
+	plugins: [reviewsBlock()],
+	// sandboxRunner and the rest stay as they are
+});
+```
+
+Restart the site. In a post or page, type `/reviews` and choose **Reviews**, or `/rating` and choose **Rating**. Each block includes **What to show**, already set. **Reviews** can also take a heading. Both show the entry they sit in.
+
 ## Check it worked
 
-1. Open a post on your site. You see a **Reviews** heading, "No reviews yet" and a **Write a review** form.
+1. Open a post on your site. You see a **Reviews** heading, "No reviews yet" and a **Write a review** form (or the sign-in line, see Guests and hosting).
 2. Write a review. See [Your first review](first-review.md).
 
 If nothing shows, see [Troubleshooting](../troubleshooting/troubleshooting.md).
-
-## After you update the plugin
-
-Copy the kit again from the new version's tag. The kit and the plugin are released together, and an older kit may not reach a newer plugin.

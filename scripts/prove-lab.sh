@@ -21,6 +21,11 @@ json "$API/list?collection=posts&id=missing" | grep -q '"bars"' || fail "list"
 ok "list"
 [[ "$(status -X POST -H 'Content-Type: application/json' -d '{"collection":"posts","id":"missing","stars":5,"name":"Sam"}' "$API/write_guest")" == "200" ]] || fail "write_guest answers guests"
 ok "write_guest answers guests"
+# This lab is Node without trustedProxyHeaders: EmDash passes no visitor address, so guests are asked to sign in.
+json "$API/health" | grep -q '"pending"' && fail "health still shows the waiting count"
+json "$API/health" | grep -q '"guestWrites":false' || fail "health says guests cannot write without a visitor address"
+json -X POST -H 'Content-Type: application/json' -d '{"collection":"posts","id":"missing","stars":5,"name":"Sam"}' "$API/write_guest" | grep -q GUEST_UNAVAILABLE || fail "guest write refused with no visitor address"
+ok "guest writes refused with no visitor address; health keeps the waiting count private"
 json "$API/summary?collection=posts&ids=a,b" | grep -q '"ratings"' || fail "summary"
 ok "summary"
 

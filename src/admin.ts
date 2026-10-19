@@ -1,17 +1,21 @@
 import type { PluginContext } from "emdash/plugin";
 
-import { allowedCollections, entryRefs, siteCollections, syncRating, waitingCount } from "./core";
+import { allowedCollections, allReviews, entryRefs, noMailProvider, sendMail, siteCollections, syncRating, waitingCount } from "./core";
 import { asBoolean, asNumber, asRecord, asString, asStringArray, plainText, rows } from "./util";
+import { guestKey } from "./visitor-key";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
 type Kind = "waiting" | "published";
 type View = { kind: Kind; page: number; q: string; replyId?: string; detailId?: string };
-type RouteUi = { ui?: { surface?: string } };
+type RouteUi = { ui?: { surface?: string }; requestMeta?: { ip?: string | null } };
 
 const PAGE_SIZE = 25;
-// ponytail: find and paging scan this many rows per status. Raise or index a search field if a site passes it.
-const SCAN = 500;
+// ponytail: find and paging walk up to this many rows of one status. Index a search field if a site passes it.
+const SCAN = 5000;
+const REPO = "https://github.com/wbcomdesigns/emdash-reviews";
+const KIT_DONE = "kit_done";
+const TEST_AT = "test_notice_at";
 const REPLY_MAX = 1000;
 const CLIP = 80;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -107,6 +111,8 @@ function noteFor(row: Record<string, unknown>): string {
 	const bits: string[] = [];
 	bits.push(row.guest === true ? "Guest" : "Member");
 	if (row.pending_change === true) bits.push("Change waiting");
+	const incoming = asString(row.pending_author);
+	if (row.pending_change === true && incoming && incoming !== asString(row.author)) bits.push(`New name: ${incoming}`);
 	return bits.join(" · ");
 }
 
@@ -114,31 +120,73 @@ function confirm(title: string, text: string, ok: string): Record<string, unknow
 	return { title, text, confirm: ok, deny: "Cancel" };
 }
 
+function installGuide(ctx: PluginContext): string {
+	return `${REPO}/blob/v${asString(ctx.plugin.version)}/docs/website/getting-started/install.md`;
+}
+
+/**
+ * The first screen tells the owner where visitor pages come from: a registry plugin cannot add
+ * pages, so until the site kit is copied the visitor addresses are the site's 404. Shown until the
+ * owner says the pages are set up, then one link to the guide.
+ */
+async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unknown>>> {
+	const guide = { type: "link", label: "Install guide", target: { kind: "external", url: installGuide(ctx) } };
+	if ((await ctx.kv.get<boolean>(KIT_DONE)) === true) {
+		return [{ type: "actions", elements: [guide, { type: "button", label: "Show the setup steps again", action_id: "kit_again" }] }];
+	}
+	const tag = `v${asString(ctx.plugin.version)}`;
+	return [
+		{
+			type: "banner",
+			title: "Set up visitor pages",
+			description:
+				"Visitors see reviews only after the site kit is in your site's code. A registry plugin cannot add pages by itself, so until then posts show no reviews and /account/reviews/ shows your 404 page.",
+		},
+		{ type: "context", text: `From your site's root folder, run this command. It gets the kit for this version (${tag}) and copies it in.` },
+		{
+			type: "code",
+			language: "bash",
+			// A fresh mktemp folder (never a fixed /tmp path someone else could create first), and the script runs only if the clone worked.
+			// Six lines of 52 characters or fewer (starter rule): a Block Kit code block does not wrap or scroll.
+			code: [
+				'kit="$(mktemp -d)" &&',
+				"  git clone --depth 1 \\",
+				`    --branch ${tag} \\`,
+				`    ${REPO} \\`,
+				'    "$kit/emdash-reviews" &&',
+				'  "$kit/emdash-reviews/scripts/add-to-site.sh" .',
+			].join("\n"),
+		},
+		{ type: "actions", elements: [{ type: "link", label: "Copy it from the install guide on a phone", target: { kind: "external", url: installGuide(ctx) } }] },
+		{
+			type: "fields",
+			fields: [
+				{ label: "Each post page", value: "Reviews, form" },
+				{ label: "Post cards", value: "Star rating" },
+				{ label: "/account/reviews/", value: "My reviews" },
+			],
+		},
+		{ type: "context", text: "The command prints the lines to paste into your templates and the menu link to add in Admin, Menus." },
+		{
+			type: "actions",
+			elements: [{ type: "button", label: "Visitor pages are set up", action_id: KIT_DONE, style: "primary" }, guide],
+		},
+	];
+}
+
 async function listed(ctx: PluginContext, view: View) {
-	const published = rows(
-		await ctx.storage.reviews.query({
-			where: { status: "published" },
-			orderBy: { createdAt: "desc" },
-			limit: SCAN,
-		}),
-	);
-	const pending = rows(
-		await ctx.storage.reviews.query({
-			where: { status: "pending" },
-			orderBy: { createdAt: "desc" },
-			limit: SCAN,
-		}),
-	);
+	const newest = { createdAt: "desc" } as const;
 	let items =
 		view.kind === "waiting"
-			? [...pending, ...published.filter((row) => row.pending_change === true)].sort((a, b) =>
-					asString(b.createdAt).localeCompare(asString(a.createdAt)),
-				)
-			: published;
+			? [
+					...(await allReviews(ctx, { status: "pending" }, newest, SCAN)),
+					...(await allReviews(ctx, { status: "published", pending_change: true }, newest, SCAN)),
+				].sort((a, b) => asString(b.createdAt).localeCompare(asString(a.createdAt)))
+			: await allReviews(ctx, { status: "published" }, newest, SCAN);
 	const needle = view.q.toLowerCase();
 	if (needle) {
 		items = items.filter((row) =>
-			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.owner_reply].some((value) =>
+			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.pending_author, row.email, row.pending_email, row.owner_reply].some((value) =>
 				asString(value).toLowerCase().includes(needle),
 			),
 		);
@@ -147,14 +195,30 @@ async function listed(ctx: PluginContext, view: View) {
 	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
 	const page = Math.min(Math.max(view.page, 1), pages);
 	const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-	return { slice, total, page, pages, published, view: { ...view, page } };
+	return { slice, total, page, pages, view: { ...view, page } };
 }
 
-function listStats(waiting: number, published: Array<Record<string, unknown>>) {
-	const since = Date.now() - WEEK_MS;
-	const week = published.filter((row) => new Date(asString(row.createdAt)).getTime() >= since).length;
-	const stars = published.map((row) => asNumber(row.stars) ?? 0).filter((n) => n > 0);
-	const average = stars.length ? Math.round((stars.reduce((sum, n) => sum + n, 0) / stars.length) * 10) / 10 : 0;
+/** Site-wide numbers from counts and the per-page rating rows, never from one capped list. */
+async function listStats(ctx: PluginContext) {
+	const since = new Date(Date.now() - WEEK_MS).toISOString();
+	const [waiting, week] = await Promise.all([
+		waitingCount(ctx),
+		// By approval time. Reviews approved before 0.2.1 carry no publishedAt and are not counted here.
+		ctx.storage.reviews.count({ status: "published", publishedAt: { gte: since } }),
+	]);
+	let stars = 0;
+	let count = 0;
+	let cursor: string | undefined;
+	do {
+		const page = await ctx.storage.ratings.query({ limit: 100, cursor });
+		for (const row of rows(page)) {
+			const n = asNumber(row.count) ?? 0;
+			stars += (asNumber(row.average) ?? 0) * n;
+			count += n;
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	const average = count ? Math.round((stars / count) * 10) / 10 : 0;
 	return {
 		type: "stats",
 		items: [
@@ -299,9 +363,8 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 }
 
 export async function renderList(ctx: PluginContext, view: View, toast?: Toast): Promise<BlockResponse> {
-	const { slice, total, page, pages, published, view: current } = await listed(ctx, view);
+	const { slice, total, page, pages, view: current } = await listed(ctx, view);
 	const waiting = current.kind === "waiting";
-	const waitingTotal = await waitingCount(ctx);
 	const actions: Array<[string, string]> = waiting
 		? [
 				["Read", "read"],
@@ -322,7 +385,8 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 	return {
 		blocks: [
 			{ type: "header", text: title },
-			listStats(waitingTotal, published),
+			...(waiting ? await setupBlocks(ctx) : []),
+			await listStats(ctx),
 			{
 				type: "form",
 				block_id: "find",
@@ -332,7 +396,7 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 						action_id: "q",
 						label: "Find",
 						initial_value: current.q,
-						placeholder: "Word in the review or the name",
+						placeholder: "Word in the review, a name or an email",
 					},
 				],
 				submit: { label: "Find", action_id: "find" },
@@ -369,13 +433,33 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 	};
 }
 
-export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise<BlockResponse> {
+export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
 	const settings = await loadSettings(ctx);
 	const noneOpen = settings.site.length > 0 && settings.open.length === 0;
 	const noSchema = settings.site.length === 0;
+	// The admin's own request comes through the same host as a visitor's, so it shows whether EmDash gets visitor addresses here.
+	const guestsOff = settings.who === "anyone" && guestKey(asString(routeCtx?.requestMeta?.ip)) === null;
+	const noMail = await noMailProvider(ctx);
 	return {
 		blocks: [
 			{ type: "header", text: "Settings" },
+			guestsOff
+				? {
+						type: "banner",
+						title: "Guests are asked to sign in on this hosting",
+						description:
+							"Guests need a host that tells EmDash the visitor's address: Cloudflare, or trustedProxyHeaders in the site config. Members can still review.",
+						variant: "alert",
+					}
+				: null,
+			guestsOff
+				? {
+						type: "actions",
+						elements: [
+							{ type: "link", label: "Guests and hosting", target: { kind: "external", url: `${installGuide(ctx)}#guests-and-hosting` } },
+						],
+					}
+				: null,
 			noSchema
 				? {
 						type: "banner",
@@ -440,7 +524,7 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 							{ type: "context", text: "Anyone is the default. A guest review always waits for approval." },
 							{
 								type: "context",
-								text: "Guest protection uses a trusted visitor address when the host provides one. Otherwise a browser cookie is used, and protection is weaker.",
+								text: "Guests are counted by their visitor address, which the host must pass to EmDash. Where it does not, guests are asked to sign in.",
 							},
 							{
 								type: "form",
@@ -471,6 +555,17 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 					{
 						label: "Email",
 						blocks: [
+							...(noMail
+								? [
+										{
+											type: "banner",
+											variant: "alert",
+											title: "This site has no email provider",
+											description:
+												"No notice will be sent until one is set up, for example the official Resend plugin. The dashboard card still shows what is waiting.",
+										} as Record<string, unknown>,
+									]
+								: []),
 							...(settings.notify && !settings.notifyTo.includes("@")
 								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Record<string, unknown>]
 								: []),
@@ -496,6 +591,11 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 								],
 								submit: { label: "Save", action_id: "save_notify" },
 							},
+							{ type: "context", text: "Use Send a test notice to check that this site can send email." },
+							{
+								type: "actions",
+								elements: [{ type: "button", label: "Send a test notice", action_id: "test_notice" }],
+							},
 						],
 					},
 				],
@@ -505,8 +605,8 @@ export async function renderSettings(ctx: PluginContext, toast?: Toast): Promise
 	};
 }
 
-function show(ctx: PluginContext, page: string, view: View, toast?: Toast): Promise<BlockResponse> {
-	if (kindOf(page) === "settings") return renderSettings(ctx, toast);
+function show(ctx: PluginContext, page: string, view: View, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
+	if (kindOf(page) === "settings") return renderSettings(ctx, routeCtx, toast);
 	return renderList(ctx, view, toast);
 }
 
@@ -532,17 +632,51 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			if (!email) {
 				return renderList(ctx, { kind: "published", page: 1, q: view.q }, { message: "Enter an email.", type: "error" });
 			}
-			const found = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
-			if (!found.length) {
+			// A privacy erase: page until none are left (storage answers 100 rows at a time).
+			const entries = new Set<string>();
+			let erased = 0;
+			for (;;) {
+				const batch = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
+				if (!batch.length) break;
+				for (const row of batch) entries.add(asString(row.entry));
+				const gone = await ctx.storage.reviews.deleteMany(batch.map((row) => row.id));
+				if (!gone) break;
+				erased += gone;
+			}
+			// The same address can also sit in a pending edit on another guest's published review (one
+			// visitor address, two people). Clear that edit; the published review is the other person's and stays.
+			const cleared = new Set<string>();
+			for (;;) {
+				const batch = rows(await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 }));
+				const fresh = batch.filter((row) => !cleared.has(row.id));
+				if (!fresh.length) break;
+				for (const row of fresh) {
+					const { id, ...data } = row;
+					await ctx.storage.reviews.put(id, {
+						...data,
+						pending_change: false,
+						pending_stars: null,
+						pending_title: "",
+						pending_body: "",
+						pending_has_text: false,
+						pending_author: "",
+						pending_email: "",
+						rev: crypto.randomUUID(),
+					});
+					cleared.add(id);
+				}
+			}
+			if (!erased && !cleared.size) {
 				return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
 					message: "No reviews with that email.",
 					type: "info",
 				});
 			}
-			await Promise.all(found.map((row) => ctx.storage.reviews.delete(row.id)));
-			for (const entry of new Set(found.map((row) => asString(row.entry)))) await syncRating(ctx, entry);
+			for (const entry of entries) await syncRating(ctx, entry);
 			return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
-				message: `Deleted ${found.length} ${found.length === 1 ? "review" : "reviews"}.`,
+				message:
+					`Deleted ${erased} ${erased === 1 ? "review" : "reviews"}.` +
+					(cleared.size ? ` Removed ${cleared.size} waiting ${cleared.size === 1 ? "change" : "changes"} on other reviews.` : ""),
 				type: "success",
 			});
 		}
@@ -568,14 +702,14 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			const known = new Set(site.map((item) => item.slug));
 			const picked = asStringArray(values.collections).filter((slug) => known.has(slug));
 			await ctx.settings.set("collections", picked.join(","));
-			return renderSettings(ctx, {
+			return renderSettings(ctx, routeCtx, {
 				message: picked.length ? "Content types saved." : "Reviews are closed. Tick a content type to open them.",
 				type: picked.length ? "success" : "info",
 			});
 		}
 		if (action === "save_moderation") {
 			await ctx.settings.set("require_moderation", asBoolean(values.require_moderation));
-			return renderSettings(ctx, { message: "Approval saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Approval saved.", type: "success" });
 		}
 		if (action === "save_who") {
 			const who = asString(values.who) === "members" ? "members" : "anyone";
@@ -583,22 +717,62 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			if ("ask_guest_email" in values) {
 				await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
 			}
-			return renderSettings(ctx, { message: "Who can review saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Who can review saved.", type: "success" });
 		}
 		if (action === "save_guest_email") {
 			await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
-			return renderSettings(ctx, { message: "Guest email saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Guest email saved.", type: "success" });
 		}
 		if (action === "save_notify") {
 			const to = asString(values.notify_to);
 			// No default address exists for a plugin to send to, so a switched-on notice needs one.
 			if (asBoolean(values.notify) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-				return renderSettings(ctx, { message: "Add the email address the notice should go to.", type: "error" });
+				return renderSettings(ctx, routeCtx, { message: "Add the email address the notice should go to.", type: "error" });
 			}
 			await ctx.settings.set("notify", asBoolean(values.notify));
 			await ctx.settings.set("notify_to", to);
-			return renderSettings(ctx, { message: "Email notice saved.", type: "success" });
+			return renderSettings(ctx, routeCtx, { message: "Saved.", type: "success" });
 		}
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === "test_notice") {
+		// Only on the owner's click: a sandboxed plugin always has ctx.email, and only a send shows whether
+		// the site has a mail provider. The result sets or clears the lasting banner.
+		const to = asString(await ctx.settings.get<string>("notify_to"));
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+			return renderSettings(ctx, routeCtx, { message: "Save the address the notice should go to first.", type: "error" });
+		}
+		// At most one test a minute, so the button cannot flood an inbox. Compare-and-set: of many parallel
+		// clicks exactly one claims the minute and sends.
+		const wait: Toast = { message: "A test notice was just requested. Wait a minute before sending another.", type: "info" };
+		const seen = await ctx.kv.getVersioned<number>(TEST_AT);
+		if (seen && Date.now() - Number(seen.value) < 60_000) return renderSettings(ctx, routeCtx, wait);
+		const claim = await ctx.kv.compareAndSet(TEST_AT, seen?.revision ?? null, Date.now());
+		if (!claim.applied) return renderSettings(ctx, routeCtx, wait);
+		const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
+		const sent = await sendMail(ctx, {
+			to,
+			subject: "Test notice from Reviews",
+			text: `This is the test you asked for. Notices about waiting reviews${site ? ` on ${site}` : ""} will reach this address.`,
+		});
+		// Nothing could go out: free the minute so the owner can test again as soon as a provider is set up.
+		if (sent === "none") await ctx.kv.compareAndDelete(TEST_AT, claim.revision).catch(() => undefined);
+		const toasts: Record<typeof sent, Toast> = {
+			sent: { message: `Test notice sent to ${to}.`, type: "success" },
+			none: { message: "No notice was sent: this site has no email provider.", type: "error" },
+			failed: { message: "The test notice could not be sent. Check the site's email provider.", type: "error" },
+		};
+		return renderSettings(ctx, routeCtx, toasts[sent]);
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === "kit_again") {
+		await ctx.kv.set(KIT_DONE, false);
+		return renderList(ctx, { kind: "waiting", page: 1, q: "" });
+	}
+
+	if (type === "block_action" && asString(raw.action_id) === KIT_DONE) {
+		await ctx.kv.set(KIT_DONE, true);
+		return renderList(ctx, { kind: "waiting", page: 1, q: "" }, { message: "Noted. The install guide stays linked here.", type: "success" });
 	}
 
 	if (type === "block_action" && asString(raw.action_id) === "page") {
@@ -636,6 +810,11 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				title: asString(row.pending_title),
 				body: asString(row.pending_body),
 				has_text: row.pending_has_text === true,
+				publishedAt: asString(row.publishedAt) || new Date().toISOString(),
+				author: asString(row.pending_author) || row.author,
+				email: row.pending_author ? asString(row.pending_email) : row.email,
+				pending_author: "",
+				pending_email: "",
 				pending_change: false,
 				pending_stars: null,
 				pending_title: "",
@@ -652,6 +831,8 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 				pending_title: "",
 				pending_body: "",
 				pending_has_text: false,
+				pending_author: "",
+				pending_email: "",
 				status: "published",
 				rev: crypto.randomUUID(),
 			});
@@ -659,6 +840,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 			await ctx.storage.reviews.put(id, {
 				...row,
 				status: action === "approve" ? "published" : "rejected",
+				publishedAt: action === "approve" ? new Date().toISOString() : "",
 				rev: crypto.randomUUID(),
 			});
 		}
@@ -674,7 +856,7 @@ export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?:
 		});
 	}
 
-	return show(ctx, page, view);
+	return show(ctx, page, view, routeCtx);
 }
 
 export async function renderDashboard(ctx: PluginContext): Promise<BlockResponse> {

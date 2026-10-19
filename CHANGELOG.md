@@ -2,6 +2,32 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.2.1]
+
+Guests now need a visitor address from the host: on other hosting, guests are asked to sign in. Copy the kit again after you update.
+
+- New      - The Waiting screen shows Set up visitor pages, with the kit command for the installed version, until you mark them done, with Show the setup steps again afterwards.
+- New      - One command, scripts/add-to-site.sh, copies the kit and prints the lines to paste with their file names.
+- Improve  - A Send a test notice button on the Email tab checks that the site can send email (at most once a minute), and Settings says plainly when it cannot.
+- Improve  - My reviews uses the site's own page column and gutter through src/layouts/ReviewsLayout.astro.
+- Improve  - A guest on My reviews sees a plain sign-in prompt instead of a red error.
+- Improve  - The reviews section keeps the same space and rule above it as the blog template's Discussion section.
+- Improve  - A post page asks a new member-only route, me, whether the visitor is signed in, instead of loading their whole review list.
+- Improve  - The review list reads one page of reviews per request; the bars and counts come from the stored rating.
+- Improve  - add-to-site.sh keeps a dated copy of any kit file you edited, or a same-named file of your own, and lists them; untouched files are replaced quietly.
+- Improve  - The rating stars follow the arrow keys: Right and Up raise the rating, Left and Down lower it, Home and End go to 1 and 5.
+- Fix      - Published reviews and the rating stay right however many reviews are waiting, and pages with over 500 reviews count them all.
+- Fix      - The review list and the rating badge show nothing for an unpublished page or a closed content type.
+- Fix      - Published this week counts reviews by the day they were approved, for reviews approved from 0.2.1 on.
+- Fix      - When a second guest writes from the same address, the change waits with their own name, and Waiting shows the new name.
+- Fix      - Install snippets name the file to edit and use the import path that works from it.
+- Security - Guests can review only where the host passes EmDash the visitor's address (Cloudflare, or trustedProxyHeaders); elsewhere guests are asked to sign in.
+- Security - IPv6 guests count by their /64 network, so rotating addresses no longer gets around the hourly limit.
+- Security - The public health route no longer shows how many reviews are waiting.
+- Security - Delete a guest's reviews by email removes every match, not only the first 100, and also clears that guest's waiting edit on another guest's review.
+- Dev      - The kit sets a wbr_vid cookie only so a site still on the 0.2.0 engine keeps one guest per browser; it will go once 0.2.0 engines are gone.
+- Compat   - Checked on EmDash 1.3.1. Shared kit styles 4: buttons use the theme's own colours in dark mode.
+
 ## [0.2.0]
 
 Copy the kit again after you update.

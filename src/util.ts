@@ -59,3 +59,4 @@ export type Row = Record<string, unknown> & { id: string };
 export function rows(result: { items: Array<{ id: string; data: unknown }> }): Row[] {
 	return result.items.map((item) => ({ ...asRecord(item.data), id: item.id }));
 }
+

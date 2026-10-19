@@ -66,7 +66,7 @@ Use this for a privacy request from someone who gave you their email.
 2. Type the address under **Guest email**.
 3. Choose **Delete those reviews**.
 
-You see "Deleted 2 reviews." or "No reviews with that email." This removes the reviews for good and updates the averages. The address must match exactly (capitals do not matter). It works only for reviews written while **Ask guests for an email** was on, because other reviews carry no address. It removes up to 100 reviews at a time. Run it again if there are more. A review with a mistyped address finds nothing.
+You see "Deleted 2 reviews." or "No reviews with that email." This removes the reviews for good and updates the averages. The address must match exactly (capitals do not matter). It works only for reviews written while **Ask guests for an email** was on, because other reviews carry no address. It removes every match in one go. Two guests can share one visitor address (an office, a phone network): if that person's change is waiting on the other guest's review, the change is removed and the other guest's published review stays as it was, and the message adds "Removed 1 waiting change on other reviews." **Find** also matches a guest's email. A review with a mistyped address finds nothing.
 
 ## Two admins at once
 

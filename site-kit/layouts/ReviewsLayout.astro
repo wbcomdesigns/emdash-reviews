@@ -1,0 +1,28 @@
+---
+/**
+ * The page shell for WB Reviews pages (My reviews). This file is yours after the first copy:
+ * add-to-site.sh never replaces it, so edit it to fit your site.
+ *
+ * It hands off to the blog template's src/layouts/Base.astro and uses that template's content
+ * column (band, section, frame), so the page has the same side gutter as every other page.
+ * If your site's layout has another name or other props, point the import below at it.
+ */
+import Base from "./Base.astro";
+
+interface Props {
+	title: string;
+	description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={title} description={description}>
+	<div class="band section">
+		<div class="frame">
+			<div class="wbr-page">
+				<slot />
+			</div>
+		</div>
+	</div>
+</Base>

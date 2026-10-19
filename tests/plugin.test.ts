@@ -18,6 +18,9 @@ const member = (id: string, role = 10) => ({
 });
 const ana = member("ana");
 const ben = member("ben");
+/** A guest request with the visitor address EmDash passes on Cloudflare or with trustedProxyHeaders. */
+const fromIp = (ip: string | null, method = "POST") => ({ method, meta: { ip, userAgent: null, referer: null, geo: null } });
+const guestIp = "203.0.113.5";
 
 /** A real site with a posts collection, one public post and one draft. */
 async function open() {
@@ -104,8 +107,8 @@ describe("writing a review", () => {
 		});
 		await call(
 			"write_guest",
-			{ collection: "posts", id: live, stars: 9, name: "Sam", body: "x".repeat(5000), visitor: "long" },
-			{ method: "POST" },
+			{ collection: "posts", id: live, stars: 9, name: "Sam", body: "x".repeat(5000) },
+			fromIp(guestIp),
 		);
 		const saved = (await rt.inspect.storage.list("reviews"))[0].data as { body: string; stars: number };
 		expect(saved.body).toHaveLength(1000);
@@ -525,7 +528,7 @@ describe("guest write", () => {
 			await call(
 				"write_guest",
 				{ collection: "posts", id: live, stars: 5, name: "Sam", body: "From a visitor." },
-				{ method: "POST" },
+				fromIp(guestIp),
 			),
 		).toMatchObject({ ok: true, status: "pending" });
 		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 0 });
@@ -538,8 +541,8 @@ describe("guest write", () => {
 		const { call, live, rt } = await open();
 		await call(
 			"write_guest",
-			{ collection: "posts", id: live, stars: 4, name: "Marco <i>Tester</i>", title: "<b>Clear</b> and useful", body: "Short and <b>bold</b> <script>x</script>test.", visitor: "tags" },
-			{ method: "POST" },
+			{ collection: "posts", id: live, stars: 4, name: "Marco <i>Tester</i>", title: "<b>Clear</b> and useful", body: "Short and <b>bold</b> <script>x</script>test." },
+			fromIp(guestIp),
 		);
 		const row = (await rt.inspect.storage.list("reviews"))[0].data as Record<string, string>;
 		expect(row.author).toBe("Marco Tester");
@@ -549,20 +552,20 @@ describe("guest write", () => {
 
 	it("replaces the same visitor, refuses members-only, and ignores a filled honeypot", async () => {
 		const { call, live, rt } = await open();
-		const guest = { method: "POST" as const };
-		await call("write_guest", { collection: "posts", id: live, stars: 4, name: "Sam", body: "First.", visitor: "same" }, guest);
-		await call("write_guest", { collection: "posts", id: live, stars: 2, name: "Sam", body: "Second.", visitor: "same" }, guest);
+		const guest = fromIp(guestIp);
+		await call("write_guest", { collection: "posts", id: live, stars: 4, name: "Sam", body: "First." }, guest);
+		await call("write_guest", { collection: "posts", id: live, stars: 2, name: "Sam", body: "Second." }, guest);
 		expect(await rt.inspect.storage.list("reviews")).toHaveLength(1);
 		expect((await rt.inspect.storage.list("reviews"))[0].data).toMatchObject({ body: "Second." });
 		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "members" }, page: "/settings" });
 		expect(
-			await call("write_guest", { collection: "posts", id: live, stars: 5, name: "Sam", visitor: "same" }, guest),
+			await call("write_guest", { collection: "posts", id: live, stars: 5, name: "Sam" }, guest),
 		).toMatchObject({ ok: false, error: { code: "MEMBERS_ONLY" } });
 		await call("admin", { type: "form_submit", action_id: "save_who", values: { who: "anyone" }, page: "/settings" });
 		expect(
 			await call(
 				"write_guest",
-				{ collection: "posts", id: live, stars: 5, name: "Bot", website: "http://spam.test", visitor: "bot" },
+				{ collection: "posts", id: live, stars: 5, name: "Bot", website: "http://spam.test" },
 				guest,
 			),
 		).toMatchObject({ ok: false, error: { code: "SPAM" } });
@@ -578,15 +581,15 @@ describe("guest write", () => {
 		});
 		await call(
 			"write_guest",
-			{ collection: "posts", id: live, stars: 5, name: "Sam", email: "sam@example.com", body: "Hi.", visitor: "mail" },
-			{ method: "POST" },
+			{ collection: "posts", id: live, stars: 5, name: "Sam", email: "sam@example.com", body: "Hi." },
+			fromIp(guestIp),
 		);
 		const stored = (await rt.inspect.storage.list("reviews"))[0].data as Record<string, unknown>;
 		expect(stored.email).toBe("sam@example.com");
 		const listed = await call("list", { collection: "posts", id: live }, { method: "GET" });
 		expect(JSON.stringify(listed)).not.toContain("sam@example.com");
 		const health = await call("health", {}, { method: "GET" });
-		expect(health).toMatchObject({ askEmail: true, who: "anyone", collections: ["posts"] });
+		expect(health).toMatchObject({ askEmail: true, collections: ["posts"] });
 		expect(JSON.stringify(health)).not.toContain("sam@example.com");
 	});
 });

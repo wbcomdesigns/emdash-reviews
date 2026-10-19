@@ -1,19 +1,74 @@
 # WB Reviews site kit
 
-The plugin is the engine. This folder is what an EmDash site owner copies so visitors see ratings on real pages. The plugin alone cannot add pages or CSS.
+The plugin is the engine. This folder is what puts reviews on your visitors' pages: a registry plugin cannot add pages or CSS by itself.
 
-Needs EmDash 1.2 or later, and a sandbox runner in `astro.config.mjs`.
+Checked on EmDash 1.3.1 with the `blog` template on Node.
 
-## 1. Install the plugin
+## Install from the registry
 
-From the registry, or for a local site:
+1. Your site needs a sandbox runner (see Before you install in the [install guide](../docs/website/getting-started/install.md)). Then Admin, Registry, search **WB Reviews**, Install, and accept `content:read`, `schema:read` and `email:send`.
+2. From your site's root folder, get the kit for the version you installed and copy it in:
 
-```bash
-# in the site
-npm install --legacy-peer-deps file:../emdash-reviews
+   ```bash
+   kit="$(mktemp -d)" &&
+     git clone --depth 1 \
+       --branch v0.2.1 \
+       https://github.com/wbcomdesigns/emdash-reviews \
+       "$kit/emdash-reviews" &&
+     "$kit/emdash-reviews/scripts/add-to-site.sh" .
+   ```
+
+   The script never replaces a newer shared file (`wbcom-kit.ts`, `wbcom-base.css`) another Wbcom plugin copied, never replaces `src/layouts/ReviewsLayout.astro` once it exists, and before it replaces any kit file you changed (wording, styles, components, the My reviews page), it saves your copy as `<file>.bak-YYYYMMDD` and lists it. Untouched files are replaced quietly.
+3. Paste the lines it prints. On the blog template:
+
+   In `src/pages/posts/[slug].astro`:
+
+   ```astro
+   import Reviews from "../../components/Reviews.astro";
+   <Reviews collection="posts" id={post.data.id} />
+   ```
+
+   In `src/components/PostCard.astro`:
+
+   ```astro
+   import RatingBadge from "./RatingBadge.astro";
+   <RatingBadge collection="posts" id={post.data.id} />
+   ```
+
+   The import line goes with the other imports at the top of the file; the tag goes where it should show. Use `post.data.id` (the entry id), not `post.id` (the slug).
+4. Restart the dev server. In Admin, Menus add **My reviews**, `/account/reviews/`.
+5. Admin, Reviews, Settings: tick the content types visitors can review. Save.
+
+After every plugin update, run step 2 with the new tag. The command clones into a fresh `mktemp -d` folder, never a fixed `/tmp` path, and runs the script only if the clone worked.
+
+Reword visitor text in `src/lib/reviews-strings.ts`. Do not write `/_emdash/api/plugins/...` in your own files: the kit finds the plugin at its registry address and at its local one.
+
+A guest's browser console shows a 401 for `.../me` on a post (and `.../mine` on My reviews). That is the kit asking whether the visitor is signed in; the page is fine.
+
+## Optional: the in-text blocks
+
+The script copies `blocks/` to `src/reviews-block/`. To place **Reviews** or **Rating** inside post text, add it as trusted site code in `astro.config.mjs`:
+
+```js
+import { reviewsBlock } from "./src/reviews-block/descriptor.mjs";
+
+emdash({
+	plugins: [reviewsBlock()],
+	// sandboxRunner and the rest stay as they are
+});
 ```
 
-Then add it next to any other sandboxed plugins:
+Restart, then type `/reviews` or `/rating` in a post. The registry plugin works the same without it.
+
+## Working on this plugin
+
+For the plugin's own developers only. A site developer never needs this section.
+
+Install the plugin from local files instead of the registry, in a lab site:
+
+```bash
+npm install --legacy-peer-deps file:../emdash-reviews
+```
 
 ```js
 import reviews from "@wbcomdesigns/emdash-reviews";
@@ -21,74 +76,7 @@ import reviews from "@wbcomdesigns/emdash-reviews";
 emdash({
 	sandboxed: [reviews],
 	sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
-})
+});
 ```
 
-Confirm `content:read`, `schema:read` and `email:send` at install.
-
-## 2. Copy the kit
-
-From the site root:
-
-```bash
-K=path/to/emdash-reviews/site-kit
-mkdir -p src/lib src/styles src/components
-cp $K/lib/reviews-strings.ts src/lib/
-cp $K/styles/reviews.css src/styles/
-cp $K/components/Reviews.astro $K/components/RatingBadge.astro $K/components/MyReviews.astro src/components/
-mkdir -p src/pages/account
-cp $K/pages/account/reviews.astro src/pages/account/reviews.astro
-
-# The two shared files are used by every Wbcom plugin. Line 1 carries a number
-# (wbcom-shared: N). Copy only when the site has no copy yet or an older one,
-# so another plugin's newer copy is never replaced.
-shared() { v="$(sed -n '1s/.*wbcom-shared: *\([0-9]*\).*/\1/p' "$1" 2>/dev/null)"; echo "${v:-0}"; }
-newer() { [ ! -f "$2" ] || [ "$(shared "$1")" -ge "$(shared "$2")" ]; }
-newer "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts && cp "$K/lib/wbcom-kit.ts" src/lib/wbcom-kit.ts
-newer "$K/styles/wbcom-base.css" src/styles/wbcom-base.css && cp "$K/styles/wbcom-base.css" src/styles/wbcom-base.css
-```
-
-Do not copy `site-kit/lab/`. That page is for the plugin lab only.
-
-## 3. Drop the components on your pages
-
-On an article, page or any entry the owner ticked in Settings:
-
-```astro
-import Reviews from "../components/Reviews.astro";
-<Reviews collection="posts" id={post.data.id} />
-```
-
-On cards and lists:
-
-```astro
-import RatingBadge from "../components/RatingBadge.astro";
-<RatingBadge collection="posts" id={post.data.id} />
-```
-
-Use the collection's real slug and the entry id. Reword visitor text in `src/lib/reviews-strings.ts`. The kit finds the plugin on a registry install and on a local install. Do not write `/_emdash/api/plugins/...` in your own files.
-
-The copy also adds `/account/reviews/` (**My reviews**). Add that address to your menu. A member sees their own reviews there and can delete them with a second click. Guests see a sign-in link.
-
-## 4. Open it as an owner
-
-1. Admin → Reviews → Settings. Tick the content types by name. Choose who can review. Save.
-2. Write a review on a live page. Guests give a name. Members can write when signed in.
-3. Admin → Waiting. Approve. The page and the badge update.
-
-A guest review always waits for approval. Stars alone are enough. Reword visitor text in `src/lib/reviews-strings.ts`.
-
-A member deletes their own reviews at `/account/reviews/`. Guest reviews are still removed by an admin: Admin, Reviews, Published, find by email.
-
-## In-text blocks
-
-Copy `site-kit/blocks/` to `src/reviews-block/` and add `reviewsBlock()` under `plugins` in `astro.config.mjs`. The install guide has the lines. The registry plugin does not need this.
-
-## Lab
-
-```bash
-./scripts/reset-lab.sh
-./scripts/prove-lab.sh
-```
-
-Lab demo: `http://localhost:4331/reviews-demo`. A real site uses the post page instead.
+The lab scripts do this for you: `scripts/setup-lab.sh`, `scripts/reset-lab.sh`, `scripts/prove-lab.sh` (lab on port 4331, demo page `/reviews-demo`). Do not copy `site-kit/lab/` into a real site.

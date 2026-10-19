@@ -15,11 +15,19 @@ Check these in order:
 
 **Who can leave a review** is set to **Signed-in members only**. A guest sees that line and a sign-in link. A signed-in member sees the form and writes as their account, with no name field. To let guests review, choose **Anyone** on the **Who can review** tab.
 
+## Guests see "Sign in to write a review." instead of the form
+
+**Who can leave a review** is **Anyone**, but your host does not pass the visitor's address to EmDash. Without it the plugin cannot limit each guest, so guests are asked to sign in and members review as normal. Settings shows **Guests are asked to sign in on this hosting**. Fix it on the host: Cloudflare passes the address; behind your own proxy, set `trustedProxyHeaders` to a header the proxy overwrites (for nginx, `x-real-ip`), never one it appends to. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
+
+## The email notice never arrives
+
+Open **Reviews**, **Settings**, **Email**. If it says **This site has no email provider**, nothing can be sent until you add one, for example the official Resend plugin. Then press **Send a test notice**: it tells you whether mail now goes out.
+
 ## Why does the console show a 401?
 
 On a page with reviews, the kit asks whether the visitor is signed in. EmDash answers "not signed in" with status 401. The browser lists that in the console in red. Visitors never see it, and the form still works: a guest sees **Your name**, and a signed-in member does not.
 
-EmDash 1.2 keeps the session cookie hidden from scripts, and the public "who am I" address returns the same 401 for a guest. There is no quieter check that still works on a page cached the same for everyone. The red line is expected.
+EmDash keeps the session cookie hidden from scripts, and the public "who am I" address returns the same 401 for a guest. There is no quieter check that still works on a page cached the same for everyone. The red line is expected.
 
 ## A visitor sent a review and I cannot find it
 
