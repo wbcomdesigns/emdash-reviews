@@ -2,6 +2,12 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.2.2]
+
+Copy the kit again after you update.
+
+- Fix      - Running scripts/add-to-site.sh again on a site whose post page and post card already show WB Reviews says the lines are already in place instead of printing them again.
+
 ## [0.2.1]
 
 Guests now need a visitor address from the host: on other hosting, guests are asked to sign in. Copy the kit again after you update.

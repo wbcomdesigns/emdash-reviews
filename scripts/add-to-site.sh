@@ -82,13 +82,33 @@ WB Reviews kit copied into $SITE
   Block       src/reviews-block/ (optional, off until you add it to astro.config.mjs)
   Seed        none needed: WB Reviews uses the content types you already have
 
-Paste these lines:
+DONE
 
+# One template step: the paste lines, or "already in place" when the template already renders the tag.
+wired() { [[ -f "$SITE/$1" ]] && grep -q "<$2[[:space:]]" "$SITE/$1"; }
+if wired "src/pages/posts/[slug].astro" Reviews && wired src/components/PostCard.astro RatingBadge; then
+	echo "Templates: src/pages/posts/[slug].astro and src/components/PostCard.astro already have the WB Reviews lines."
+	echo
+else
+	echo "Paste these lines:"
+	echo
+	if wired "src/pages/posts/[slug].astro" Reviews; then
+		echo "  1. src/pages/posts/[slug].astro: the Reviews lines are already in place."
+		echo
+	else
+		cat <<'STEP'
   1. In src/pages/posts/[slug].astro (the post page), add to the imports at the top:
        import Reviews from "../../components/Reviews.astro";
      and where the reviews should show, for example just above <section class="post-comments">:
        <Reviews collection="posts" id={post.data.id} />
 
+STEP
+	fi
+	if wired src/components/PostCard.astro RatingBadge; then
+		echo "  2. src/components/PostCard.astro: the RatingBadge line is already in place."
+		echo
+	else
+		cat <<'STEP'
   2. In src/components/PostCard.astro (the post card), add to the imports at the top:
        import RatingBadge from "./RatingBadge.astro";
      and inside the card, right after these two lines (the end of <span class="post__meta">):
@@ -97,8 +117,13 @@ Paste these lines:
      add:
        <RatingBadge collection="posts" id={post.data.id} />
 
-  Use post.data.id (the entry id), not post.id (the slug). For pages, use collection="pages".
+STEP
+	fi
+	echo '  Use post.data.id (the entry id), not post.id (the slug). For pages, use collection="pages".'
+	echo
+fi
 
+cat <<DONE
 Then:
 
   3. Restart the dev server (stop it, then npm run dev).
