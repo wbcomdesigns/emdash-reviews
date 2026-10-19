@@ -53,6 +53,18 @@ out="$("$SCRIPT" "$site")"
 grep -q testimonials "$site"/src/components/Reviews.astro.bak-* || fail "replaced the site's own Reviews.astro without a backup"
 grep -q mine "$site/src/layouts/ReviewsLayout.astro" || fail "replaced the site's ReviewsLayout.astro"
 
+# Templates that already render the tags get "already in place", not the paste lines (issue: re-run on a wired site).
+new_site wired
+mkdir -p "$site/src/pages/posts" "$site/src/components"
+printf '%s\n' '---' 'import Reviews from "../../components/Reviews.astro";' '---' '<Reviews collection="posts" id={post.data.id} />' > "$site/src/pages/posts/[slug].astro"
+echo '<span>card</span>' > "$site/src/components/PostCard.astro"
+out="$("$SCRIPT" "$site")"
+[[ "$out" == *"[slug].astro: the Reviews lines are already in place."* ]] || fail "no already-in-place line for the wired post page"
+[[ "$out" == *"import RatingBadge from"* ]] || fail "dropped the paste lines for the unwired card"
+echo '<RatingBadge collection="posts" id={post.data.id} />' >> "$site/src/components/PostCard.astro"
+out="$("$SCRIPT" "$site")"
+[[ "$out" == *"already have the WB Reviews lines."* && "$out" != *"Paste these lines"* ]] || fail "printed paste lines for fully wired templates"
+
 # The update command is printed on six lines of 52 characters or fewer.
 block="$(grep -A5 '^       kit="$(mktemp -d)" &&$' <<<"$out")"
 [[ "$(wc -l <<<"$block" | tr -d ' ')" == 6 ]] || fail "update command is not six lines"
@@ -64,4 +76,4 @@ mkdir -p "$work/plain"
 "$SCRIPT" "$work/plain" >/dev/null 2>&1 && fail "accepted a folder that is not an EmDash site"
 err="$("$SCRIPT" "$work/does-not-exist" 2>&1 >/dev/null || true)"
 [[ "$err" == *"Usage:"* ]] || fail "no usage line for a missing folder"
-echo "add-to-site.sh: 8 checks passed"
+echo "add-to-site.sh: 11 checks passed"
