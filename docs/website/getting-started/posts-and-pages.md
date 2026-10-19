@@ -54,12 +54,12 @@ On the blog template, post cards are drawn by `src/components/PostCard.astro`, w
 
 2. In the same file, place the badge where the card should show it, right after these two lines, which end `<span class="post__meta">` (the first `</span>` after it closes the nested reading-time span, not the meta span):
 
-```astro
-				<span>{readingTime}</span>
-			</span>
-```
+   ```astro
+   				<span>{readingTime}</span>
+   			</span>
+   ```
 
-add:
+   add:
 
    ```astro
    <RatingBadge collection="posts" id={post.data.id} />
