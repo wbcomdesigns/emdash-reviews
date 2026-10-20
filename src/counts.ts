@@ -113,14 +113,16 @@ export function readRating(data: unknown): Rating | null {
 			url: asString(row.url),
 		};
 	}
-	// 0.2.x: rows from 0.2.0 have no bars; the upgrade rebuilds them.
+	// 0.2.x: rows from 0.2.0 have no bars; the upgrade rebuilds them. The row cannot say whether its
+	// page is still published, so it is not live: no badge shows from it until the upgrade rebuilds it
+	// from the published entries. The list route checks the entry itself and still shows its numbers.
 	const bars = Array.isArray(row.bars) ? row.bars.map((n) => asNumber(n) ?? 0) : [0, 0, 0, 0, 0];
 	return {
 		count: asNumber(row.count) ?? 0,
 		average: asNumber(row.average) ?? 0,
 		bars,
 		text: asNumber(row.text_count) ?? 0,
-		live: true,
+		live: false,
 		ready: true,
 		url: "",
 	};

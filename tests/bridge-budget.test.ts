@@ -266,18 +266,18 @@ describe("visitor routes on data from 0.2.2, before the upgrade", () => {
 		expect(result).toMatchObject({ ok: true });
 	});
 
-	it("summary: 50 rated cards in one read", async () => {
+	it("summary: 50 cards in one read; 0.2.x rows cannot say their page is still public, so no badge until the upgrade", async () => {
 		const result = await measure("route summary (50 rated cards, 0.2.2 data)", () =>
 			s.call("summary", { collection: "posts", ids: posts.slice(0, 50).join(",") }, { method: "GET" }),
 		);
-		expect(Object.keys((result as { ratings: Row }).ratings)).toHaveLength(50);
+		expect((result as { ratings: Row }).ratings).toEqual({});
 	});
 
 	it("summary: rating rows 0.2.0 lost show nothing until the upgrade rebuilds them", async () => {
 		const result = await measure("route summary (50 cards, 20 lost rating rows)", () =>
 			s.call("summary", { collection: "posts", ids: posts.slice(POSTS - 50).join(",") }, { method: "GET" }),
 		);
-		expect(Object.keys((result as { ratings: Row }).ratings)).toHaveLength(50 - LOST);
+		expect((result as { ratings: Row }).ratings).toEqual({});
 	});
 });
 

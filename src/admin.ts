@@ -397,7 +397,7 @@ function progressScreen(view: View, stats: Stats, toast?: Toast): BlockResponse 
 			{
 				type: "banner",
 				title: "Updating your reviews for this version",
-				description: `${upgradeLabel(stats)}. Visitors keep seeing reviews and ratings meanwhile. A busy site takes a few steps.`,
+				description: `${upgradeLabel(stats)}. Visitors keep seeing reviews on each page; rating badges on post cards come back as each page is rebuilt. A busy site takes a few steps.`,
 			},
 			{ type: "actions", elements: [{ type: "button", label: "Continue", action_id: "upgrade", style: "primary", value: viewParts(view).join("|") }] },
 			{ type: "context", text: "It also continues by itself once an hour." },
@@ -845,7 +845,8 @@ async function deleteByEmail(ctx: PluginContext, email: string): Promise<BlockRe
 	const b = budget();
 	if (!email) return renderList(ctx, b, view, null, { message: "Enter an email.", type: "error" });
 	spend(b);
-	const edits = rows(await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 }));
+	const editRead = await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 });
+	const edits = rows(editRead);
 	let extra: StatsChange | null = null;
 	if (edits.length) {
 		spend(b);
@@ -856,7 +857,9 @@ async function deleteByEmail(ctx: PluginContext, email: string): Promise<BlockRe
 		await ctx.storage.reviews.putMany(cleared);
 		extra = sumChanges(edits.map((row, i) => statsChange(row, cleared[i]!.data)));
 	}
-	const done = await eraseRows(ctx, b, { email }, 1 + AFTER_ROWS, extra);
+	const erased = await eraseRows(ctx, b, { email }, 1 + AFTER_ROWS, extra);
+	// A privacy erase never reports done while either kind of row is left: more waiting changes count too.
+	const done = { ...erased, more: erased.more || editRead.hasMore };
 	if (!done.erased && !edits.length) return renderList(ctx, b, view, done.stats, { message: "No reviews with that email.", type: "info" });
 	const message =
 		`Deleted ${done.erased} ${done.erased === 1 ? "review" : "reviews"}.` +

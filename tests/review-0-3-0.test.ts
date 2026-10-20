@@ -250,3 +250,34 @@ describe("published state", () => {
 		expect(Object.keys(await summary())).toEqual([site.live]);
 	});
 });
+
+describe("security review fixes", () => {
+	it("a 0.2.x rating row shows no badge before the upgrade rebuilds it, so an unpublished page never shows one", async () => {
+		const site = await open({ fresh: false });
+		// As 0.2.2 left them: a rating row for the live post and one for a post that is a draft now.
+		await site.rt.fixtures.plugin.storage("ratings", site.entry, { collection: "posts", entryId: site.live, average: 4, count: 2, bars: [0, 0, 0, 2, 0], text_count: 2 });
+		await site.rt.fixtures.plugin.storage("ratings", `posts:${site.draft}`, { collection: "posts", entryId: site.draft, average: 5, count: 1, bars: [0, 0, 0, 0, 1], text_count: 1 });
+		const { result, calls } = await countBridgeCalls(() => site.call("summary", { collection: "posts", ids: `${site.live},${site.draft}` }, { method: "GET" }));
+		expect(calls).toHaveLength(2);
+		expect((result as { ratings: Row }).ratings).toEqual({});
+	});
+
+	it("delete by email says more remain while waiting changes with that address are left", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		for (let n = 0; n < 101; n += 1) {
+			await site.rt.fixtures.plugin.storage("reviews", `${site.entry}:e${n}`, {
+				entry: site.entry, collection: "posts", entryId: site.live, status: "published", stars: 4, body: "Live", has_text: true, rev: "r",
+				createdAt: "2026-01-01T00:00:00.000Z", pending_change: true, pending_stars: 1, pending_body: "Edit", pending_author: "Sam", pending_email: "sam@example.com",
+			});
+		}
+		const press = async () =>
+			(await within(() => site.admin({ type: "form_submit", action_id: "delete_email", page: "/published", values: { email: "sam@example.com" } }))) as { toast: { message: string; type: string } };
+		const first = await press();
+		expect(first.toast).toMatchObject({ type: "info" });
+		expect(first.toast.message).toContain("More remain");
+		const second = await press();
+		expect(second.toast.type).toBe("success");
+		expect((await site.rt.inspect.storage.list<Row>("reviews")).filter((r) => r.data.pending_email === "sam@example.com")).toHaveLength(0);
+	});
+});
