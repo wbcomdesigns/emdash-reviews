@@ -25,7 +25,7 @@ type Site = Awaited<ReturnType<typeof open>>;
 /** Runs right before the plugin's `nth` bridge call named `method`, while that call waits. */
 let race: { method: string; nth: number; run: () => Promise<unknown> } | null = null;
 const proto = PluginBridge.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
-for (const name of ["storageCompareAndSet", "storageUpdateIf", "storageDeleteMany", "storageCount", "kvCompareAndSet"]) {
+for (const name of ["storageCompareAndSet", "storageUpdateIf", "storageDeleteMany", "storageCount", "kvCompareAndSet", "storageQuery"]) {
 	const method = proto[name]!;
 	proto[name] = async function (this: unknown, ...args: unknown[]) {
 		if (race?.method === name && --race.nth === 0) {
@@ -279,5 +279,173 @@ describe("security review fixes", () => {
 		const second = await press();
 		expect(second.toast.type).toBe("success");
 		expect((await site.rt.inspect.storage.list<Row>("reviews")).filter((r) => r.data.pending_email === "sam@example.com")).toHaveLength(0);
+	});
+});
+
+/** A review row as 0.2.x stored it. */
+const oldReview = (site: Site, entryId: string, who: string, extra: Row = {}): [string, Row] => [
+	`posts:${entryId}:${who}`,
+	{
+		entry: `posts:${entryId}`, collection: "posts", entryId, member_id: who, author: who, status: "published", stars: 4, title: "", body: `By ${who}`,
+		has_text: true, rev: `r-${who}`, createdAt: "2026-01-01T00:00:00.000Z", ...extra,
+	},
+];
+async function seedOld(site: Site, list: Array<[string, Row]>) {
+	for (const [id, row] of list) await site.rt.fixtures.plugin.storage("reviews", id, row);
+}
+const ratingOf = (site: Site, entry = site.entry) => site.rt.inspect.storage.get<Row>("ratings", entry);
+const bars = (row: Row | null) => [row?.s1, row?.s2, row?.s3, row?.s4, row?.s5, row?.t].map((n) => Number(n ?? 0));
+async function settle(site: Site, loads = 20) {
+	for (let i = 0; i < loads; i += 1) {
+		const open = (await site.rt.inspect.storage.list<Row>("ratings")).filter((r) => r.data.ready === false);
+		const queued = await site.rt.inspect.storage.list("rating_queue");
+		const stats = await site.rt.inspect.storage.get<Row>("stats", "site");
+		if (!open.length && !queued.length && stats?.ready === true) return;
+		await within(() => site.rt.admin.loadWidget("waiting"));
+		await within(() => site.rt.admin.loadPage("/waiting"));
+	}
+	throw new Error("Upkeep did not settle");
+}
+
+describe("independent review fixes", () => {
+	it("M1: an open content type that no longer exists does not stop the upgrade", async () => {
+		const site = await open({ fresh: false });
+		await site.rt.fixtures.plugin.setting("collections", "posts,gone");
+		await seedOld(site, [oldReview(site, site.live, "a")]);
+		await finishUpgrade(site.rt);
+		expect(bars(await ratingOf(site))).toEqual([0, 0, 0, 1, 0, 1]);
+	});
+
+	it("M2: an erase on a page being counted makes it count again, and finishes after the upgrade", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		await site.write("ana", { stars: 4 });
+		await site.write("ben", { stars: 4 });
+		// Half counted: s1 to s3 were counted, then Ana erases.
+		await site.rt.fixtures.plugin.storage("ratings", site.entry, { ...(await ratingOf(site)), ready: false, step: 3 });
+		await within(() => site.call("mine", {}, site.as(member("ana"), "DELETE")));
+		await settle(site);
+		expect(await ratingOf(site)).toMatchObject({ ready: true });
+		await check(site);
+	});
+
+	it("M2: a queued change made before the page was counted again is dropped", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		await site.write("ana", { stars: 5 });
+		const row = (await ratingOf(site))!;
+		// Counted again since (epoch 1), so its count already leaves out what the queued change removes.
+		await site.rt.fixtures.plugin.storage("ratings", site.entry, { ...row, epoch: 1 });
+		await site.rt.fixtures.plugin.storage("rating_queue", "000000001|a", { entry: site.entry, recount: false, epoch: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: -1, t: -1 });
+		await site.rt.admin.loadWidget("waiting");
+		expect(await site.rt.inspect.storage.list("rating_queue")).toHaveLength(0);
+		await check(site);
+	});
+
+	it("M3: a 0.2.x rating row for a page with no reviews is rebuilt, and later reviews on it count", async () => {
+		const site = await open({ fresh: false });
+		await seedOld(site, [oldReview(site, "elsewhere", "x")]);
+		await site.rt.fixtures.plugin.storage("ratings", site.entry, { collection: "posts", entryId: site.live, average: 4, count: 3, bars: [0, 0, 0, 3, 0], text_count: 3 });
+		await finishUpgrade(site.rt);
+		expect(await site.call("list", { collection: "posts", id: site.live }, { method: "GET" })).toMatchObject({ count: 0 });
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		await site.write("ana", { stars: 2 });
+		expect(await site.call("summary", { collection: "posts", ids: site.live }, { method: "GET" })).toMatchObject({ ratings: { [site.live]: { count: 1, average: 2 } } });
+	});
+
+	it("M4: Waiting shows its reviews while the upgrade runs, with the progress line on top", async () => {
+		const site = await open({ fresh: false });
+		await seedOld(site, [oldReview(site, site.live, "pat", { author: "Pending Pat", status: "pending" })]);
+		const page = JSON.stringify(await within(() => site.rt.admin.loadPage("/waiting")));
+		expect(page).toContain("Updating your reviews for this version");
+		expect(page).toContain("Pending Pat");
+		expect(page).toContain('"type":"table"');
+	});
+
+	it("L1: two callers claiming queued work at once apply every item exactly once", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		for (const who of ["ana", "ben", "carl"]) await site.write(who, { stars: 5 });
+		for (const n of [1, 2, 3]) {
+			await site.rt.fixtures.plugin.storage("rating_queue", `00000000${n}|q`, { entry: site.entry, recount: false, epoch: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: -1, t: 0 });
+		}
+		race = { method: "storageDeleteMany", nth: 1, run: () => site.rt.admin.loadPage("/waiting") };
+		await site.rt.admin.loadWidget("waiting");
+		expect(race).toBeNull();
+		await settle(site);
+		expect((await ratingOf(site))!.s5).toBe(0);
+	});
+
+	it("L2: an erase that races a decision on the same reviews counts the pages and the site again", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		const other = await site.rt.fixtures.content("posts", { data: { title: "Other" }, slug: "other", status: "published" } as never);
+		await site.write("ana", { stars: 3 });
+		await site.call("write", { collection: "posts", id: other.id, stars: 5, body: "Yes." }, site.as(member("ana")));
+		await site.write("ben", { stars: 1 });
+		race = { method: "storageDeleteMany", nth: 1, run: () => site.decide("delete", "ana") };
+		await site.call("mine", {}, site.as(member("ana"), "DELETE"));
+		expect(race).toBeNull();
+		await settle(site);
+		await check(site);
+		expect(bars(await ratingOf(site, `posts:${other.id}`))).toEqual([0, 0, 0, 0, 0, 0]);
+	});
+
+	it("L3: a slow upgrade step never puts back an older state", async () => {
+		const site = await open({ fresh: false });
+		await seedOld(site, Array.from({ length: 350 }, (_, n) => oldReview(site, `p${String(n).padStart(3, "0")}`, "a")));
+		const press = () => site.admin({ type: "block_action", action_id: "upgrade", page: "/waiting", value: "waiting|1|||" });
+		const state = async () => ((await site.rt.inspect.storage.get<Row>("stats", "site"))?.upgrade ?? {}) as Row;
+		for (let i = 0; i < 10 && (await state()).phase !== "ratings"; i += 1) await press();
+		expect((await state()).phase).toBe("ratings");
+		let ahead: Row = {};
+		// This press reads the next page; meanwhile two other presses go further.
+		race = { method: "storageQuery", nth: 1, run: async () => (await press(), await press(), (ahead = await state())) };
+		await press();
+		expect(race).toBeNull();
+		expect((await state()).after).toBe(ahead.after);
+	});
+
+	it("L4: a page restored from the trash is live again only when it comes back published", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		await site.write("ana", { stars: 5 });
+		const live = async () => (await ratingOf(site))!.live;
+		const until = async (want: boolean) => {
+			for (let i = 0; i < 50 && (await live()) !== want; i += 1) await new Promise((r) => setTimeout(r, 20));
+			return live();
+		};
+		await site.rt.actions.content.trash("posts", site.live);
+		expect(await until(false)).toBe(false);
+		// EmDash restores into a draft: no badge.
+		await site.rt.actions.content.restore("posts", site.live);
+		expect(await until(false)).toBe(false);
+		// A restore that comes back published shows the badge again.
+		await site.rt.transport.invokeHook("content:afterRestore", { collection: "posts", content: { id: site.live, status: "published" } });
+		expect(await live()).toBe(true);
+	});
+
+	it("L5: a busy live page keeps its 0.2.x rating while it is counted field by field", async () => {
+		const site = await open({ fresh: false });
+		await seedOld(site, Array.from({ length: 101 }, (_, n) => oldReview(site, site.live, `m${n}`)));
+		await site.rt.fixtures.plugin.storage("ratings", site.entry, { collection: "posts", entryId: site.live, average: 4, count: 101, bars: [0, 0, 0, 101, 0], text_count: 101 });
+		for (let i = 0; i < 20; i += 1) {
+			const row = await ratingOf(site);
+			if (row?.v === 3 && row.ready === false) break;
+			await site.admin({ type: "block_action", action_id: "upgrade", page: "/waiting", value: "waiting|1|||" });
+		}
+		expect(await ratingOf(site)).toMatchObject({ v: 3, ready: false });
+		expect(await site.call("summary", { collection: "posts", ids: site.live }, { method: "GET" })).toMatchObject({ ratings: { [site.live]: { count: 101, average: 4 } } });
+		await finishUpgrade(site.rt);
+		expect(bars(await ratingOf(site))).toEqual([0, 0, 0, 101, 0, 101]);
+	});
+
+	it("L8: the review to decide shows the member's text exactly, in a code block, without invisible characters", async () => {
+		const site = await open();
+		await site.write("ana", { body: "**Not bold** and `not code`\u200B\u202E" });
+		const row = (await site.rt.inspect.storage.get<Row>("reviews", `${site.entry}:ana`))!;
+		expect(row.body).toBe("**Not bold** and `not code`");
+		const screen = (await site.admin({ type: "block_action", action_id: "decide", page: "/waiting", value: `read|${row.rev}|${site.entry}:ana` })) as { blocks: Row[] };
+		expect(screen.blocks).toContainEqual(expect.objectContaining({ type: "code", code: "**Not bold** and `not code`" }));
 	});
 });

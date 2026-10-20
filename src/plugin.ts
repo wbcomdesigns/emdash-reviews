@@ -20,8 +20,8 @@ import {
 import {
 	addToRating,
 	budget,
-	drainQueue,
 	ensureRating,
+	maintain,
 	MAX_CALLS,
 	minus,
 	moveRating,
@@ -201,7 +201,8 @@ async function hourly(ctx: PluginContext): Promise<void> {
 			text: `Reviews are waiting for approval${site ? ` on ${site}` : ""}.\n\nSign in to your site admin and open Reviews, then Waiting.`,
 		});
 	}
-	await drainQueue(ctx, b, MAX_CALLS);
+	// Several claims of queued rating work while the budget lasts, then counting a page counted again.
+	await maintain(ctx, b, 0, 3);
 }
 
 /** Mark a reviewed page live or not, so its rating badge shows only while the page is public. One call, only for pages that have a rating row. */
@@ -233,6 +234,10 @@ const plugin: SandboxedPlugin = {
 		},
 		"content:afterUnpublish": {
 			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, false),
+		},
+		// Restored from the trash: live again only when it comes back published.
+		"content:afterRestore": {
+			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, asRecord(event.content).status === "published"),
 		},
 		"content:afterDelete": {
 			handler: async (event, ctx) => setLive(ctx, event.collection, event.id, false),

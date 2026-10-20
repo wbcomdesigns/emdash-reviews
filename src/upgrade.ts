@@ -1,8 +1,9 @@
 import type { PluginContext } from "emdash/plugin";
 
-import { entryKey, loadSettings } from "./core";
+import { entryKey, loadSettings, siteCollections } from "./core";
 import {
 	freshRating,
+	legacyNumbers,
 	MAX_CALLS,
 	partOf,
 	plus,
@@ -20,7 +21,7 @@ import {
 	type Counts,
 	type Stats,
 } from "./counts";
-import { asRecord, asString } from "./util";
+import { asNumber, asRecord, asString } from "./util";
 
 /**
  * Bringing 0.2.x data into the 0.3.0 counts, a few steps per call (Cloudflare allows 10 requests per
@@ -36,9 +37,13 @@ import { asRecord, asString } from "./util";
  * 4. `ratings`: every review, 100 per read in page order, is counted into a 0.3.0 rating row for its
  *    page, keeping the address and live flag a 0.3.0 write already stored. A page with more than 100
  *    reviews gets a row that is not ready yet.
- * 5. `counting`: rows that are not ready are counted field by field (stepCount).
+ * 5. `legacy`: rating rows still in 0.2.x shape (pages whose reviews were all deleted) are read 100
+ *    at a time and made 0.3.0 rows that are not ready, so step 6 counts them from their reviews and
+ *    later writes on those pages are counted.
+ * 6. `counting`: rows that are not ready are counted field by field (stepCount).
  *
- * A new install has nothing to bring over: plugin:install stores a finished record.
+ * A new install has nothing to bring over: plugin:install stores a finished record. Each state write
+ * is guarded by `useq`, so a slow call (an hourly run) never puts back an older state.
  * ponytail: step 4 writes whole rows, so a review decided in the one call between the read of a page
  * and the write of its rows is missing from that page's count. The owner's next decision on that page
  * moves its count again; a Recount would need its own screen.
@@ -47,7 +52,7 @@ export const KIT_DONE = "kit_done";
 export const ENTRIES = "entries";
 export const DONE = "done";
 
-type State = { phase: string; cols: string[]; ci: number; cursor: string; after: string };
+type State = { phase: string; cols: string[]; ci: number; cursor: string; after: string; rcursor: string };
 
 function stateOf(raw: Record<string, unknown>): State {
 	return {
@@ -56,6 +61,7 @@ function stateOf(raw: Record<string, unknown>): State {
 		ci: Number(raw.ci) || 0,
 		cursor: asString(raw.cursor),
 		after: asString(raw.after),
+		rcursor: asString(raw.rcursor),
 	};
 }
 
@@ -63,29 +69,18 @@ export function upgradeDone(stats: Stats): boolean {
 	return stats.exists && stats.ready && asString(stats.upgrade.phase) === DONE;
 }
 
-/**
- * Whether a rating change that could not be applied now should wait in the queue. While the upgrade
- * has not rebuilt a page yet it will count that page from its reviews, so its change is dropped.
- */
-export function queueable(stats: Stats | null, entry: string): boolean {
-	if (!stats) return false;
-	const state = stateOf(stats.upgrade);
-	if (state.phase === DONE || state.phase === "counting") return true;
-	return state.phase === "ratings" && Boolean(state.after) && entry <= state.after;
-}
-
 /** What the progress screen says about where the upgrade is. */
 export function upgradeLabel(stats: Stats): string {
 	if (!stats.exists || !stats.ready) return "Counting reviews";
 	const phase = asString(stats.upgrade.phase);
 	if (phase === "entries" || phase === "kit") return "Reading page titles";
-	if (phase === "ratings") return "Rebuilding page ratings";
+	if (phase === "ratings" || phase === "legacy") return "Rebuilding page ratings";
 	return "Counting the busiest pages";
 }
 
 /** A finished site record with every count at zero. */
 export function emptySite(kitDone = false): Record<string, unknown> {
-	return { v: V, seq: 0, step: STAT_FIELDS.length, ready: true, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, kit_done: kitDone, upgrade: { phase: DONE } };
+	return { v: V, seq: 0, useq: 0, step: STAT_FIELDS.length, ready: true, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, kit_done: kitDone, upgrade: { phase: DONE } };
 }
 
 /**
@@ -99,38 +94,43 @@ export async function startSite(ctx: PluginContext): Promise<Record<string, unkn
 		const made = await ctx.storage[STATS]!.compareAndSet(SITE, null, site).catch(() => ({ applied: false }));
 		return made.applied ? site : null;
 	}
-	const counting = { v: V, seq: 0, step: 0, ready: false, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, upgrade: { phase: "kit" } };
+	const counting = { v: V, seq: 0, useq: 0, step: 0, ready: false, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, upgrade: { phase: "kit" } };
 	await ctx.storage[STATS]!.compareAndSet(SITE, null, counting).catch(() => undefined);
 	return null;
 }
 
 /**
- * Run upgrade steps with what is left of the budget. `raw` is the site record the caller already
- * read (null when there is none). Returns true when the upgrade is finished.
+ * Run upgrade steps with what is left of the budget after `reserve` (calls the caller needs after).
+ * `raw` is the site record the caller already read (null when there is none). Returns true when the
+ * upgrade is finished.
  */
-export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown): Promise<boolean> {
+export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown, reserve = 0): Promise<boolean> {
 	if (raw === null || raw === undefined) {
-		if (!spend(b, 3)) return false;
+		if (b.used + 3 + reserve > MAX_CALLS || !spend(b, 3)) return false;
 		return (await startSite(ctx)) !== null;
 	}
 	const row = asRecord(raw);
 	if (row.ready !== true) {
-		await stepCount(ctx, STATS, SITE, STAT_FIELDS, b, row);
-		return false;
+		const inner = { used: b.used + reserve };
+		const counted = await stepCount(ctx, STATS, SITE, STAT_FIELDS, inner, row);
+		b.used = inner.used - reserve;
+		return counted && asString(asRecord(row.upgrade).phase) === DONE;
 	}
 	const state = stateOf(asRecord(row.upgrade));
 	if (state.phase === DONE) return true;
 	const start = JSON.stringify(state);
 	let kit: boolean | undefined;
 	// One call is kept for saving the state.
-	const fits = (n: number) => b.used + n + 1 <= MAX_CALLS;
+	const fits = (n: number) => b.used + n + 1 + reserve <= MAX_CALLS;
 
 	while (state.phase !== DONE) {
 		if (state.phase === "kit") {
-			if (!fits(2)) break;
-			spend(b, 2);
+			if (!fits(3)) break;
+			spend(b, 3);
 			kit = (await ctx.kv.get<boolean>(KIT_DONE)) === true;
-			state.cols = (await loadSettings(ctx)).collections;
+			// Only content types the site has: reading one it does not have fails.
+			const known = new Set((await siteCollections(ctx).catch(() => [])).map((item) => item.slug));
+			state.cols = (await loadSettings(ctx)).collections.filter((slug) => known.has(slug));
 			Object.assign(state, { phase: "entries", ci: 0, cursor: "" });
 			continue;
 		}
@@ -142,7 +142,8 @@ export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown): 
 			}
 			if (!fits(2)) break;
 			spend(b);
-			const page = await ctx.content?.list(col, { limit: 100, cursor: state.cursor || undefined, where: { status: "published" } });
+			// A content type that no longer exists (or posts on a site without them) has nothing to read.
+			const page = await ctx.content?.list(col, { limit: 100, cursor: state.cursor || undefined, where: { status: "published" } }).catch(() => null);
 			const items = page?.items ?? [];
 			spend(b);
 			if (items.length) {
@@ -173,7 +174,7 @@ export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown): 
 			}
 			const keys = [...byEntry.keys()];
 			if (!keys.length) {
-				state.phase = "counting";
+				Object.assign(state, { phase: "legacy", rcursor: "" });
 				continue;
 			}
 			// With more to read, the last page in this read may go on in the next one. A read that is all one page is that page's whole count: it is counted field by field instead.
@@ -184,14 +185,38 @@ export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown): 
 			const [live, stored] = await Promise.all([ctx.storage[ENTRIES]!.getMany(ids), ctx.storage[RATINGS]!.getMany(ids)]);
 			const rows = ids.map((key) => {
 				const was = asRecord(stored.get(key));
-				const keep = was.v === V ? { live: was.live !== false, url: asString(was.url) } : { live: live.has(key), url: "" };
-				if (key === big) return { id: key, data: { ...freshRating(key, zero(), keep), step: 0, ready: false } };
+				// A new epoch: changes queued against the row before it was counted again are dropped.
+				const keep = {
+					...(was.v === V ? { live: was.live !== false, url: asString(was.url) } : { live: live.has(key), url: "" }),
+					epoch: (asNumber(was.epoch) ?? 0) + 1,
+				};
+				// Counted field by field over later calls; meanwhile it shows its 0.2.x numbers (a live page only).
+				if (key === big) return { id: key, data: { ...freshRating(key, zero(), keep), step: 0, ready: false, legacy: legacyNumbers(was) } };
 				const counts = (byEntry.get(key) ?? []).reduce<Counts>((sum, review) => plus(sum, partOf(review)), zero());
 				return { id: key, data: freshRating(key, counts, keep) };
 			});
 			await ctx.storage[RATINGS]!.putMany(rows);
 			state.after = ids[ids.length - 1]!;
-			if (!page.hasMore) state.phase = "counting";
+			if (!page.hasMore) Object.assign(state, { phase: "legacy", rcursor: "" });
+			continue;
+		}
+		if (state.phase === "legacy") {
+			if (!fits(3)) break;
+			spend(b);
+			const page = await ctx.storage[RATINGS]!.query({ limit: 100, cursor: state.rcursor || undefined });
+			const old = page.items.filter((item) => asRecord(item.data).v !== V);
+			if (old.length) {
+				spend(b, 2);
+				const live = await ctx.storage[ENTRIES]!.getMany(old.map((item) => item.id));
+				await ctx.storage[RATINGS]!.putMany(
+					old.map((item) => ({
+						id: item.id,
+						data: { ...freshRating(item.id, zero(), { live: live.has(item.id), epoch: 1 }), step: 0, ready: false, legacy: live.has(item.id) ? legacyNumbers(item.data) : null },
+					})),
+				);
+			}
+			if (page.hasMore && page.cursor) state.rcursor = page.cursor;
+			else state.phase = "counting";
 			continue;
 		}
 		// counting
@@ -203,25 +228,28 @@ export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown): 
 			state.phase = DONE;
 			continue;
 		}
-		// The save is kept out of stepCount's budget.
-		const inner = { used: b.used + 1 };
+		// The save and the caller's reserve are kept out of stepCount's budget.
+		const inner = { used: b.used + 1 + reserve };
 		await stepCount(ctx, RATINGS, next.id, ratingFields(next.id), inner, asRecord(next.data));
-		b.used = inner.used - 1;
+		b.used = inner.used - 1 - reserve;
 		break;
 	}
 
 	if (JSON.stringify(state) !== start || kit !== undefined) {
 		spend(b);
-		await ctx.storage[STATS]!.updateIf(SITE, {
-			where: {},
+		// Only over the state this call read: a call that started earlier and ends later is refused.
+		const saved = await ctx.storage[STATS]!.updateIf(SITE, {
+			where: { useq: asNumber(row.useq) ?? 0 },
 			set: { upgrade: state, ...(kit !== undefined ? { kit_done: kit } : {}) },
-		}).catch(() => undefined);
+			delta: { useq: { inc: 1 } },
+		}).catch(() => ({ applied: false as const }));
+		if (!saved.applied) return false;
 	}
 	return state.phase === DONE;
 }
 
 /** Read the site record and run what fits of the upgrade. Returns the record as read, whether the upgrade was already finished, and whether this call finished it. */
-export async function siteAndUpgrade(ctx: PluginContext, b: Budget, run: boolean): Promise<{ stats: Stats; done: boolean; finished?: boolean }> {
+export async function siteAndUpgrade(ctx: PluginContext, b: Budget, run: boolean, reserve = 0): Promise<{ stats: Stats; done: boolean; finished?: boolean }> {
 	spend(b);
 	const raw = await ctx.storage[STATS]!.get(SITE);
 	const stats = readStats(raw);
@@ -229,10 +257,11 @@ export async function siteAndUpgrade(ctx: PluginContext, b: Budget, run: boolean
 	if (!run) return { stats, done: false };
 	if (!raw) {
 		// A site with no reviews starts finished, and its first screen is the normal one.
+		if (b.used + 3 + reserve > MAX_CALLS) return { stats, done: false };
 		spend(b, 3);
 		const made = await startSite(ctx);
 		return made ? { stats: readStats(made), done: true } : { stats, done: false };
 	}
 	// `finished`: this call's step ended the upgrade. The record read above is from before it.
-	return { stats, done: false, finished: await upgradeStep(ctx, b, raw) };
+	return { stats, done: false, finished: await upgradeStep(ctx, b, raw, reserve) };
 }

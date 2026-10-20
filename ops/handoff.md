@@ -22,7 +22,7 @@ How it works now (details in SCOPE.md, Cloudflare section):
 - `src/plugin.ts`: visitor writes are one create or one compare-and-set; the rate record is one compare-and-set (lost = `BUSY`). `summary` is 2 calls. Content hooks keep `live`.
 - `src/admin.ts`: lists page by `createdAt` (Next, Previous), decisions are one guarded write, renders reuse the site record an action's write returns. `drawn()` keeps a failed render from turning a stored decision into an error page.
 - `src/erase.ts`: Delete all my reviews (300 per call, `BUSY`/`MORE` when more remain, the 0.3.0 kit repeats) and delete by email (100 per press).
-- `src/upgrade.ts`: stepped 0.2.x upgrade with a progress screen (Continue), also run hourly.
+- `src/upgrade.ts`: stepped 0.2.x upgrade (also run hourly); Waiting and Published work meanwhile with the progress line on top. Review fixes after the independent review (M1 to M4, L1 to L5, L7, L8) are each covered by a test under "independent review fixes" in `tests/review-0-3-0.test.ts`.
 - Kit: `BUSY` phrase; My reviews repeats the erase. `kit.sums` regenerated.
 - Tests: `tests/review-0-3-0.test.ts` races every counter; `tests/site.ts` has `install()` and `finishUpgrade()`.
 
@@ -38,6 +38,7 @@ How it works now (details in SCOPE.md, Cloudflare section):
 - A queued rating change is lost if the call that claimed it dies before writing it.
 - A rating row made by an approval (no visitor write first) has no page address; My reviews looks it up live, up to the call budget.
 - Paging by `createdAt` skips a row with exactly the bound's millisecond.
+- The 0.2.2 kit shows its generic error line for BUSY (review item L6, left by decision: the changelog says copy the kit again).
 
 ## How to work
 

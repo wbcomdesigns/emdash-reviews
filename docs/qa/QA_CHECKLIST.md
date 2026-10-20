@@ -104,15 +104,15 @@ Run these on the Cloudflare testbed (registry install) and on the Node lab. On C
 
 | ID | Do | Expect |
 | --- | --- | --- |
-| CF-1 | Update a site that has 0.2.2 data (reviews, waiting, published, a page with more than 100 reviews), then open Reviews, Waiting | Updating your reviews for this version with Continue. Each press works; after a few, Waiting shows. Visitors see reviews and ratings throughout |
+| CF-1 | Update a site that has 0.2.2 data (reviews, waiting, published, a page with more than 100 reviews), then open Reviews, Waiting | The list shows with Updating your reviews for this version and Continue on top; approving works meanwhile. Each press works; after a few the line goes. Visitors see reviews on each page throughout; card badges come back as pages are rebuilt |
 | CF-2 | After CF-1, compare each page's rating and count on the site with its published reviews | They match, including a page whose rating 0.2.0 lost |
 | CF-3 | Guest writes a review on a busy page (Cloudflare passes the address) | Thanks message; the review waits; Waiting count goes up by one |
 | CF-4 | Member writes, then changes, a review with approval on and with approval off | Each answers with the thanks message; with approval off the rating and badge change at once |
 | CF-5 | Submit the same review twice quickly (double click, two tabs) | One review stored and counted once; a second answer may say to try again in a moment |
 | CF-6 | Post list with 50 rated cards | Every badge shows; no error in the Worker log |
-| CF-7 | Unpublish a rated post, reload the post list; publish it again | The badge goes, then comes back |
+| CF-7 | Unpublish a rated post, reload the post list; publish it again. Trash it and restore it | The badge goes, then comes back. After a restore (a draft) it stays hidden until published |
 | CF-8 | Waiting and Published: Next, Previous, Find, Search older, Read, Approve, Reject, Reply, Delete, approve and reject a change | Each answers with its toast and the list; nothing fails |
-| CF-9 | Delete a guest's reviews by email with more than 100 reviews | Deleted 100 reviews. More remain; a second press finishes; ratings settle after a few admin loads |
+| CF-9 | Delete a guest's reviews by email with waiting changes and more than 100 reviews | First press clears the waiting changes and says More remain; then Deleted 100 reviews. More remain; the last press says Deleted N reviews.; ratings settle after a few admin loads |
 | CF-10 | My reviews for a member with many reviews, then Delete all my reviews | Every page named and linked; all deleted in one press of the button |
 | CF-11 | Settings: save every tab, Send a test notice; open the dashboard card | Each saves with its toast; the card shows the waiting count |
 

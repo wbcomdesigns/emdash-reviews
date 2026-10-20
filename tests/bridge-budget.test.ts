@@ -25,10 +25,10 @@ const MEASURED: Record<string, number> = {
 	"route summary (50 rated cards, 0.2.2 data)": 2,
 	"route summary (50 cards, 20 lost rating rows)": 2,
 	"cron notify (0.2.2 data, counts the site)": 9,
-	"admin page_load /waiting (upgrade step, worst)": 8,
+	"admin page_load /waiting (upgrade step, worst)": 9,
 	"cron notify (upgrade step)": 6,
-	"admin block upgrade (Continue, worst)": 8,
-	"cron notify (on, waiting)": 5,
+	"admin block upgrade (Continue, worst)": 9,
+	"cron notify (on, waiting)": 6,
 	"hook page:metadata (rated)": 1,
 	"hook content:afterUnpublish": 1,
 	"hook content:afterPublish": 1,
@@ -44,18 +44,18 @@ const MEASURED: Record<string, number> = {
 	"route write (approval off, change a published review)": 8,
 	"route write (rate limited)": 3,
 	"route mine DELETE (100 reviews)": 9,
-	"route mine DELETE (350 reviews, first call)": 9,
+	"route mine DELETE (350 reviews, first call)": 8,
 	"route write_guest (first guest, 500 reviews)": 8,
 	"route write_guest (salt exists, 500 reviews)": 7,
 	"route write_guest (change a waiting review)": 8,
 	"admin page_load /waiting": 9,
-	"admin page_load /published": 5,
+	"admin page_load /published": 6,
 	"admin page_load /settings": 3,
-	"admin widget waiting": 2,
+	"admin widget waiting": 3,
 	"admin form find (waiting)": 7,
 	"admin block page (published p2)": 4,
 	"admin block page (waiting, Previous)": 5,
-	"admin table sort click (published)": 5,
+	"admin table sort click (published)": 6,
 	"admin decide read (waiting)": 6,
 	"admin decide ask_delete (published)": 5,
 	"admin decide reply (published)": 5,
@@ -69,7 +69,7 @@ const MEASURED: Record<string, number> = {
 	"admin decide delete (500 reviews)": 7,
 	"admin decide unreply": 5,
 	"admin form save_reply": 5,
-	"admin form delete_email (30 + 5 edits)": 9,
+	"admin form delete_email (30 + 5 edits)": 7,
 	"admin block kit_done": 5,
 	"admin block kit_again": 5,
 	"admin form save_collections": 4,
@@ -151,6 +151,12 @@ async function measure<T>(name: string, run: () => Promise<T>): Promise<T> {
 }
 
 const admin = (input: Row) => s.call("admin", input);
+
+async function within<T>(run: () => Promise<T>): Promise<T> {
+	const { result, calls } = await countBridgeCalls(run);
+	expect.soft(calls.length, calls.join(",")).toBeLessThanOrEqual(MAX_BRIDGE_CALLS);
+	return result;
+}
 const stamp = (action: string, id: string, rev: string, kind = "waiting") => `${action}|${rev}|${id}|${kind}|1|`;
 const reviewIdOf = (post: string, who: string) => `posts:${post}:${who}`;
 
@@ -290,6 +296,8 @@ describe("upgrade from 0.2.2", () => {
 	it("runs step by step on admin loads, the hourly task and Continue, each within the budget", async () => {
 		const screens = await measureWorst("admin page_load /waiting (upgrade step, worst)", 4, () => s.rt.admin.loadPage("/waiting"));
 		expect(screens.every(upgrading)).toBe(true);
+		// The list shows and works under the progress line.
+		expect(screens.every((screen) => json(screen).includes(`"type":"table"`))).toBe(true);
 		await measureWorst("cron notify (upgrade step)", 2, () => s.rt.transport.invokeHook("cron", { name: "notify" }));
 		let steps = 0;
 		const presses = await measureWorst("admin block upgrade (Continue, worst)", 30, async () => {
@@ -569,10 +577,13 @@ describe("admin actions", () => {
 	});
 
 	it("delete a guest's reviews by email: 30 reviews on 30 posts, 5 waiting edits", async () => {
+		// The first press clears the waiting changes and says more remain; the second deletes the reviews.
 		const result = await measure("admin form delete_email (30 + 5 edits)", () =>
 			admin({ type: "form_submit", action_id: "delete_email", page: "/published", values: { email: GUEST_EMAIL } }),
 		);
-		expect(result).toMatchObject({ toast: { type: "success" } });
+		expect(result).toMatchObject({ toast: { type: "info" } });
+		const second = await within(() => admin({ type: "form_submit", action_id: "delete_email", page: "/published", values: { email: GUEST_EMAIL } }));
+		expect(second).toMatchObject({ toast: { type: "success", message: `Deleted ${GUEST_EMAIL_REVIEWS} reviews.` } });
 		expect((await s.rt.inspect.storage.list<Row>("reviews")).filter((r) => r.data.email === GUEST_EMAIL || r.data.pending_email === GUEST_EMAIL)).toHaveLength(0);
 		// Ratings the call could not move wait in the queue; admin loads and the hourly task apply them.
 		for (let i = 0; i < 200 && (await s.rt.inspect.storage.list("rating_queue")).length; i += 1) await s.rt.admin.loadWidget("waiting");

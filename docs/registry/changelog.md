@@ -2,8 +2,8 @@
 
 - Improve: every page, admin action and visitor request fits Cloudflare's 10 requests per plugin call. Counts move with each review instead of re-reading every review of the page.
 - Improve: Waiting and Published page by date; Find searches a few hundred reviews per press. Delete all my reviews and delete by email work in steps.
-- Fix: reviews sent at the same moment are never counted twice or lost. Ratings 0.2.0 lost are rebuilt.
-- After updating, open Reviews in the admin once: it brings 0.2 data over in a few steps. No new permission.
+- Fix: reviews sent at the same moment are each counted once. Ratings 0.2.0 lost are rebuilt.
+- After updating, open Reviews in the admin: it brings 0.2 data over in a few steps while you keep moderating. No new permission.
 
 Copy the kit again after you update, from your site's root folder:
 

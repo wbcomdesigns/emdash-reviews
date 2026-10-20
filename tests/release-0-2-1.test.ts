@@ -259,7 +259,8 @@ describe("member check and erasure", () => {
 		expect(found).toContain("Ana");
 		const press = async () =>
 			((await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "ana@example.com" }, page: "/published" })) as { toast: { message: string } }).toast.message;
-		expect(await press()).toBe("Deleted 100 reviews. Removed 1 waiting change on other reviews. More remain: press Delete those reviews again.");
+		expect(await press()).toBe("Removed 1 waiting change on other reviews. More remain: press Delete those reviews again.");
+		expect(await press()).toBe("Deleted 100 reviews. More remain: press Delete those reviews again.");
 		expect(await press()).toBe("Deleted 20 reviews.");
 		const left = await rt.inspect.storage.list<Record<string, unknown>>("reviews");
 		expect(left.map((row) => row.id)).toEqual([bId]);

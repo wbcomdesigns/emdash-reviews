@@ -4,18 +4,20 @@ Versions match `package.json`, the git tag and the registry release. Newest firs
 
 ## [0.3.0]
 
-Every page, action and visitor request now fits Cloudflare's limit of 10 requests per plugin call. After updating, open Reviews in the admin once: it brings 0.2 data over in a few steps while visitors keep seeing reviews. No new permission. Copy the kit again after you update.
+Every page, action and visitor request now fits Cloudflare's limit of 10 requests per plugin call. After updating, open Reviews in the admin: it brings 0.2 data over in a few steps (Continue, or once an hour) while you keep moderating and visitors keep seeing reviews. No new permission. Copy the kit again after you update.
 
 - Improve  - Writing, approving, rejecting and deleting a review move the stored counts in the same request, instead of reading every review of the page again.
 - Improve  - Rating badges for a page of cards come from one read, and a badge hides as soon as its page is unpublished or deleted.
 - Improve  - My reviews reads a member's reviews, page titles and page links in a few reads, however many reviews they wrote.
 - Improve  - Waiting and Published read 25 reviews at a time; Next and Previous page by date, and Find searches a few hundred reviews per press with Search older for the rest.
 - Improve  - Settings and the visitor routes read every setting in one request.
-- Improve  - Delete all my reviews erases up to 300 reviews per request and the kit repeats it until none are left; Delete a guest's reviews by email erases 100 per press.
+- Improve  - Delete all my reviews erases up to 300 reviews per request and the kit repeats it until none are left; Delete a guest's reviews by email clears waiting changes first and erases 100 reviews per press, saying when more remain.
 - Improve  - The site counts on Waiting (waiting, average rating) come from one stored record instead of reading every page's rating.
-- Fix      - Two reviews sent at the same moment, or one review sent twice, are never counted twice or lost; the slower one is asked to try again in a moment.
+- Fix      - Two reviews sent at the same moment, or one review sent twice, are each stored and counted once; a write that loses the race stores nothing and is asked to try again in a moment.
 - Fix      - Approving or rejecting a review that changed after the page loaded is refused in the same write that would apply it.
-- Fix      - Ratings that 0.2.0 lost are rebuilt for every page by the update, not on a visitor's request.
+- Fix      - Ratings that 0.2.0 lost, and 0.2 ratings of pages with no reviews left, are rebuilt by the update, not on a visitor's request.
+- Fix      - A rating badge hides when its page is unpublished, trashed or restored as a draft, including 0.2 ratings until the update rebuilds them.
+- Fix      - Member text on the review to decide shows exactly as written, and invisible and control characters are no longer stored.
 - Dev      - New storage: stats, entries and rating_queue, and a ready index on ratings. Visitor reads never write.
 - Dev      - tests/bridge-budget.test.ts measures every route, hook, admin action and the hourly task at 9 requests or fewer on a busy site, and tests/review-0-3-0.test.ts races every counter.
 

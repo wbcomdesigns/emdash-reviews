@@ -10,7 +10,14 @@ export function asString(value: unknown): string {
 
 /** Text a person typed, stored as plain text: anything shaped like an HTML tag is dropped, so it never shows as "<b>". */
 export function plainText(value: unknown): string {
-	return asString(value).replace(/<[^>]*>/g, "").replace(/[ \t]{2,}/g, " ").trim();
+	return (
+		asString(value)
+			.replace(/<[^>]*>/g, "")
+			// Control and invisible characters (zero-width, direction overrides, BOM): never stored. Line breaks stay.
+			.replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, "")
+			.replace(/[ \t]{2,}/g, " ")
+			.trim()
+	);
 }
 
 export function asBoolean(value: unknown): boolean {
