@@ -77,12 +77,21 @@ import { mine as S } from "../lib/reviews-strings";
 				return;
 			}
 			erase.setAttribute("aria-busy", "true");
-			const result = await api("reviews", "mine", undefined, "DELETE");
+			// A member with many reviews waits a few seconds: say so until the list is back.
+			status.hidden = false;
+			status.dataset.tone = "";
+			status.textContent = S.erasing;
+			// A member with hundreds of reviews is erased over a few calls: the engine answers BUSY with reason MORE until none are left.
+			let result = await api("reviews", "mine", undefined, "DELETE");
+			for (let n = 0; n < 20 && !result.ok && result.error?.code === "BUSY" && (result.error as { reason?: string }).reason === "MORE"; n += 1) {
+				result = await api("reviews", "mine", undefined, "DELETE");
+			}
 			erase.removeAttribute("aria-busy");
 			erase.dataset.armed = "";
 			erase.textContent = S.erase;
-			tell(status, result, S.erased);
+			list.innerHTML = `<p class="wb-muted">${esc(S.loading)}</p>`;
 			await load();
+			tell(status, result, S.erased);
 		});
 	});
 </script>

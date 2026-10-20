@@ -4,6 +4,19 @@
 
 This file is the contract for the plugin. Code, tests, docs and cards all follow it. If something here is wrong, change it here first, in the same pull request as the code.
 
+## Cloudflare request limit (0.3.0, issue #66)
+
+**This section wins over the schema, routes and risks below where they disagree.**
+
+On Cloudflare every route, hook, admin action and cron run gets 10 requests to the site. Every entry point stays at 9 or fewer in its worst case (`tests/bridge-budget.test.ts`, MEASURED pinned, nothing over). No new capability.
+
+- **Counts are stored and moved, never rebuilt by reading reviews.** A write moves them with in-database increments in the same call, after the review is stored, and never fails the answer. `ratings/<collection>:<entryId>` (0.3.0 rows have `v: 3`): `s1`..`s5` published reviews per star, `t` published with text, `live`, `url` (for My reviews), `seq`, `step`, `ready`. Count, sum and average are worked out from `s1`..`s5`. `stats/site`: `pending`, `changes`, `s1`..`s5` over the site, `kit_done` (moved from kv), and `upgrade` (the 0.2.x upgrade state).
+- **One visitor write, one guarded write.** A first review is a create that only succeeds when there is none; a change is a read and a compare-and-set on it. The rate record (`rate:write:<who>`, kv) is one compare-and-set, one attempt. A lost compare-and-set answers `BUSY` and stores nothing. Every visitor write re-reads the entry to check it is published; the review row keeps its page title (`entry_title`).
+- **Reads never write.** `summary` is one read of the settings and one `getMany` of rating rows. The badge shows only while `live` is not false; `content:afterPublish`, `content:afterUnpublish` and `content:afterDelete` (allowed by `content:read`) keep it.
+- **Admin decisions are one write guarded by the version stamp** (and the status for a waiting review). Lists page by `createdAt` (Next, Previous), 25 rows, titles from the rows or `entries`, site numbers from `stats/site` plus one count for the week. Find scans a few hundred rows per press and offers Search older. Table columns are not sortable.
+- **Bulk erasures** (Delete all my reviews, delete by email) erase up to 300 and 100 rows per call; site counts move in the same call; page ratings move in the same call while the budget lasts, the rest go to `rating_queue` with the row's `epoch` (it goes up whenever a row is counted again, so a change queued before is dropped) and are applied two at a time (one claim size everywhere) by admin loads, the dashboard card and the hourly task. A row being counted is counted again instead of taking a change; an erase that races another write on the same rows counts its pages and the site again. Rows counted again after the upgrade are counted by the same upkeep. `mine` DELETE answers `BUSY` with `reason: "MORE"` when rows remain; the 0.3.0 kit repeats it.
+- **Upgrade from 0.2.x** (`src/upgrade.ts`), a few steps per admin load, Continue, or hourly run. Waiting and Published render and work meanwhile, with the progress line on top. Steps: count the site record (guarded by `seq`), move `kit_done`, store published entry titles in `entries` (only content types the site has), rebuild every page's rating from its reviews (pages over 100 reviews counted field by field, showing their 0.2.x numbers while live), make any 0.2.x rating row left (a page with no reviews) a row to count, then done. State writes are guarded by `useq`. A new install with no reviews starts finished. Until a page's 0.2.x rating row is rebuilt it is not live: the page itself still shows its reviews and numbers (`list` checks the entry), but `summary` shows no badge for it, so a page unpublished since 0.2 never shows one.
+
 ## Corrections after reading EmDash's own guides (2026-10-13)
 
 **This section wins over any older line below that disagrees with it.**
@@ -146,17 +159,18 @@ Row id: `<collection>:<entryId>:<memberId>`. A guest's row id is `<collection>:<
 | `owner_reply` | string | The owner's public reply. Up to 1000 characters. Empty when there is none |
 | `owner_reply_at` | string | ISO time of the reply |
 | `email` | string | Guests only, and only when the owner asks for it. Never returned by a public route |
+| `entry_title` | string | The page title at write time (0.3.0). Reviews from 0.2.x take theirs from `entries` |
 
 ### `ratings`
 
-Row id: `<collection>:<entryId>`. Indexes: `collection`.
+Row id: `<collection>:<entryId>`. Indexes: `collection`, `ready`. Also `stats` (one row, `site`), `entries` (page titles from the upgrade) and `rating_queue` (rating changes a bulk erase queued).
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `collection` | string |  |
 | `entryId` | string |  |
-| `average` | number | One decimal |
-| `count` | number | Published reviews only |
+| `average` | number | 0.2.x rows only. 0.3.0 rows store `s1`..`s5`, `t`, `live`, `url`, `seq`, `step`, `ready`, `v` (see the Cloudflare section) |
+| `count` | number | Published reviews only. 0.2.x rows only |
 
 ## Settings
 
@@ -229,7 +243,6 @@ A screen is done when every state listed here has been seen in a browser at 1440
 
 - Star input uses reversed source order so CSS can fill leftwards. Arrow-key direction must be checked with a keyboard and a screen reader
 - `page:metadata` output has only been tested through the test host, not on a rendered page
-- `syncRating` reads up to 500 reviews per entry
 - The kit has not been walked in a browser yet
 - Guest routes are public writes. Per-visitor limit, honeypot, length caps, and refuse when the host gives no IP. Never trust a visitor id from the request: derive it from the request's IP on the server
 - A guest email is personal data. It must never leave through `list`, `summary` or page HTML: test for it explicitly

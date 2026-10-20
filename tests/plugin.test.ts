@@ -25,6 +25,8 @@ const guestIp = "203.0.113.5";
 /** A real site with a posts collection, one public post and one draft. */
 async function open() {
 	const rt = await createPluginRuntimeTestHost();
+	// A fresh registry install: the site record starts with nothing to bring over.
+	await rt.transport.invokeHook("plugin:install", {});
 	await rt.fixtures.collection({
 		slug: "posts",
 		label: "Posts",
@@ -395,10 +397,24 @@ describe("admin lists", () => {
 		const first = await call("admin", { type: "page_load", page: "/waiting" });
 		expect(JSON.stringify(first)).toContain("Page 1 of 3");
 		expect(JSON.stringify(first)).toContain('"value":"60"');
-		const third = (await call("admin", { type: "block_action", action_id: "page", value: "waiting|3|" })) as {
-			blocks: Array<Record<string, unknown>>;
+		type Screen = { blocks: Array<{ elements?: Array<{ label: string; value: string }> }> };
+		const press = async (screen: unknown, label: string) => {
+			const button = (screen as Screen).blocks.flatMap((b) => b.elements ?? []).find((e) => e.label === label);
+			expect(button, label).toBeDefined();
+			return call("admin", { type: "block_action", action_id: "page", value: button!.value });
 		};
+		const second = await press(first, "Next");
+		expect(JSON.stringify(second)).toContain("Page 2 of 3");
+		const third = await press(second, "Next");
 		expect(JSON.stringify(third)).toContain("Page 3 of 3");
+		// Newest first: page 1 holds 59 to 35, page 2 34 to 10, page 3 the oldest ten. No review is skipped or repeated.
+		const markers = (screen: unknown) => [...JSON.stringify(screen).matchAll(/marker-(\d+)/g)].map((m) => Number(m[1]));
+		const seenAll = [...markers(first), ...markers(second), ...markers(third)];
+		expect(new Set(seenAll).size).toBe(60);
+		expect(markers(third)).toHaveLength(10);
+		expect(JSON.stringify(third)).not.toContain('"label":"Next"');
+		const back = await press(third, "Previous");
+		expect(markers(back).sort()).toEqual(markers(second).sort());
 		const found = (await call("admin", {
 			type: "form_submit",
 			action_id: "find",

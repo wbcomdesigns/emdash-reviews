@@ -98,6 +98,26 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 | H-6 | `/account/reviews/` as a guest at 390 | Plain sign-in box, same side gutter as the header |
 | H-7 | Run `scripts/add-to-site.sh` twice on a fresh blog site, wording file changed in between | Second run saves `reviews-strings.ts.bak-<date>-<time>` only for an edited file (an untouched older release file is replaced quietly), keeps `ReviewsLayout.astro`, prints file names and import paths |
 
+## 0.3.0 cases (Cloudflare request limit)
+
+Run these on the Cloudflare testbed (registry install) and on the Node lab. On Cloudflare a request over the limit fails with "Too many subrequests"; watch the Worker logs (`wrangler tail`) for it during every case.
+
+| ID | Do | Expect |
+| --- | --- | --- |
+| CF-1 | Update a site that has 0.2.2 data (reviews, waiting, published, a page with more than 100 reviews), then open Reviews, Waiting | The list shows with Updating your reviews for this version and Continue on top; approving works meanwhile. Each press works; after a few the line goes. Visitors see reviews on each page throughout; card badges come back as pages are rebuilt |
+| CF-2 | After CF-1, compare each page's rating and count on the site with its published reviews | They match, including a page whose rating 0.2.0 lost |
+| CF-3 | Guest writes a review on a busy page (Cloudflare passes the address) | Thanks message; the review waits; Waiting count goes up by one |
+| CF-4 | Member writes, then changes, a review with approval on and with approval off | Each answers with the thanks message; with approval off the rating and badge change at once |
+| CF-5 | Submit the same review twice quickly (double click, two tabs) | One review stored and counted once; a second answer may say to try again in a moment |
+| CF-6 | Post list with 50 rated cards | Every badge shows; no error in the Worker log |
+| CF-7 | Unpublish a rated post, reload the post list; publish it again. Trash it and restore it | The badge goes, then comes back. After a restore (a draft) it stays hidden until published |
+| CF-8 | Waiting and Published: Next, Previous, Find, Search older, Read, Approve, Reject, Reply, Delete, approve and reject a change | Each answers with its toast and the list; nothing fails |
+| CF-9 | Delete a guest's reviews by email with waiting changes and more than 100 reviews | First press clears the waiting changes and says More remain; then Deleted 100 reviews. More remain; the last press says Deleted N reviews.; ratings settle after a few admin loads |
+| CF-10 | My reviews for a member with many reviews (after CF-1, and on 0.2.x data), then Delete all my reviews | Every page named and linked; Deleting your reviews shows until the list is back; all deleted in one press of the button |
+| CF-12 | Cold load of a post (cache cleared), fill the form and press Submit at once | Submit shows busy, then the thanks message; the address bar never shows the review text |
+| CF-13 | Find a word in Waiting, then Approve or Reject one match | The other matches are still listed |
+| CF-11 | Settings: save every tab, Send a test notice; open the dashboard card | Each saves with its toast; the card shows the waiting count |
+
 ## Known gaps
 
 - This plugin has no `OWNER_INVENTORY.md`, `CORE_PATHS.md`, `SURFACES.md`, or personas yet. Walks use this checklist. Work and QA findings go to GitHub issues, not Basecamp.
