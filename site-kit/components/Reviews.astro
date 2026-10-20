@@ -47,7 +47,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		<strong>{S.signInWrite}</strong>{" "}
 		<a href="/_emdash/admin/login">{S.signInLink}</a>
 	</p>
-	<form class="wb-form" data-wbr-form novalidate>
+	<form class="wb-form" data-wbr-form method="post" novalidate>
 		<h3>{S.writeHeading}</h3>
 		<fieldset class="wb-field" style="border:0;margin:0;padding:0;">
 			<legend class="wb-label">{S.rating}</legend>
@@ -94,6 +94,27 @@ const zone = (await getSiteSettings())?.timezone || "";
 		<p class="wb-status" data-wbr-status role="status" hidden></p>
 	</form>
 </section>
+
+<script is:inline>
+	// On a cold load the kit script below can bind a few seconds after the form shows. A review sent
+	// before then is held here (Submit shows as busy) and sent once the script binds, so the browser
+	// never sends the form itself (which would put the name and text in the address and lose them).
+	if (!window.wbrEarlySubmit) {
+		window.wbrEarlySubmit = true;
+		document.addEventListener(
+			"submit",
+			(event) => {
+				const form = event.target instanceof Element ? event.target.closest("[data-wbr-form]") : null;
+				if (!form || form.dataset.wbrReady) return;
+				event.preventDefault();
+				form.dataset.wbrQueued = "1";
+				const button = form.querySelector("button[type=submit]");
+				if (button) button.setAttribute("aria-busy", "true");
+			},
+			true,
+		);
+	}
+</script>
 
 <script>
 	import { api, esc, signInUrl, starText } from "../lib/wbcom-kit";
@@ -317,5 +338,13 @@ const zone = (await getSiteSettings())?.timezone || "";
 				await load(1, false);
 			}
 		});
+		if (form) {
+			// From here the script sends the form. A review held while it loaded goes now.
+			form.dataset.wbrReady = "1";
+			if (form.dataset.wbrQueued) {
+				delete form.dataset.wbrQueued;
+				form.requestSubmit();
+			}
+		}
 	});
 </script>

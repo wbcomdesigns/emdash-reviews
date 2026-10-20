@@ -64,6 +64,7 @@ export const mine = {
 	erase: "Delete all my reviews",
 	eraseAgain: "Click again to delete them for good",
 	erased: "Your reviews were deleted.",
+	erasing: "Deleting your reviews…",
 	gone: "Page no longer available",
 	pending: "Awaiting approval",
 	published: "Published",

@@ -18,7 +18,12 @@ Every page, action and visitor request now fits Cloudflare's limit of 10 request
 - Fix      - Ratings that 0.2.0 lost, and 0.2 ratings of pages with no reviews left, are rebuilt by the update, not on a visitor's request.
 - Fix      - A rating badge hides when its page is unpublished, trashed or restored as a draft, including 0.2 ratings until the update rebuilds them.
 - Fix      - Member text on the review to decide shows exactly as written, and invisible and control characters are no longer stored.
+- Fix      - A review sent before the page's script loaded is held and sent once it has, instead of being lost with its text in the address bar.
+- Fix      - My reviews links every reviewed page, including pages reviewed before the update.
+- Fix      - After Approve or Reject on a Find result, the list shows the remaining matches.
+- Improve  - Delete all my reviews shows that it is deleting; delete by email clears up to 200 waiting changes a press.
 - Dev      - New storage: stats, entries and rating_queue, and a ready index on ratings. Visitor reads never write.
+- Dev      - tests/block-check.ts checks every admin answer in every test with EmDash's own Block Kit validator.
 - Dev      - tests/bridge-budget.test.ts measures every route, hook, admin action and the hourly task at 9 requests or fewer on a busy site, and tests/review-0-3-0.test.ts races every counter.
 
 ## [0.2.2]

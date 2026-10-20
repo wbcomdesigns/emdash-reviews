@@ -36,8 +36,8 @@ const MEASURED: Record<string, number> = {
 	"route list (500 reviews, page 50)": 8,
 	"route summary (50 rated cards)": 2,
 	"route me": 0,
-	"route mine GET (100 reviews)": 9,
-	"route write (first, approval on, 500 reviews)": 8,
+	"route mine GET (100 reviews)": 3,
+	"route write (first, approval on, 500 reviews)": 9,
 	"route write (change published, approval on)": 8,
 	"route write (approval off, 500 reviews)": 9,
 	"route write (approval off, first on an unrated page)": 8,
@@ -53,25 +53,25 @@ const MEASURED: Record<string, number> = {
 	"admin page_load /settings": 3,
 	"admin widget waiting": 3,
 	"admin form find (waiting)": 7,
-	"admin block page (published p2)": 4,
-	"admin block page (waiting, Previous)": 5,
+	"admin block page (published p2)": 6,
+	"admin block page (waiting, Previous)": 7,
 	"admin table sort click (published)": 6,
 	"admin decide read (waiting)": 6,
-	"admin decide ask_delete (published)": 5,
-	"admin decide reply (published)": 5,
+	"admin decide ask_delete (published)": 7,
+	"admin decide reply (published)": 7,
 	"admin decide approve (500 reviews)": 7,
 	"admin decide approve (first on an unrated page)": 8,
 	"admin decide reject (500 reviews)": 6,
 	"admin decide approve change": 9,
 	"admin decide reject change": 8,
-	"admin decide stale stamp": 5,
-	"admin decide missing review": 5,
+	"admin decide stale stamp": 7,
+	"admin decide missing review": 7,
 	"admin decide delete (500 reviews)": 7,
-	"admin decide unreply": 5,
-	"admin form save_reply": 5,
+	"admin decide unreply": 7,
+	"admin form save_reply": 7,
 	"admin form delete_email (30 + 5 edits)": 7,
-	"admin block kit_done": 5,
-	"admin block kit_again": 5,
+	"admin block kit_done": 7,
+	"admin block kit_again": 7,
 	"admin form save_collections": 4,
 	"admin form save_moderation": 4,
 	"admin form save_who (with guest email)": 5,
@@ -300,14 +300,14 @@ describe("upgrade from 0.2.2", () => {
 		expect(screens.every((screen) => json(screen).includes(`"type":"table"`))).toBe(true);
 		await measureWorst("cron notify (upgrade step)", 2, () => s.rt.transport.invokeHook("cron", { name: "notify" }));
 		let steps = 0;
-		const presses = await measureWorst("admin block upgrade (Continue, worst)", 30, async () => {
+		const presses = await measureWorst("admin block upgrade (Continue, worst)", 80, async () => {
 			const site = (await s.rt.inspect.storage.get<Row>("stats", "site"))!;
 			if ((site.upgrade as Row | undefined)?.phase === "done") return null;
 			steps += 1;
 			return admin({ type: "block_action", action_id: "upgrade", page: "/waiting", value: "waiting|1|||" });
 		});
 		expect((await s.rt.inspect.storage.get<Row>("stats", "site"))!.upgrade).toMatchObject({ phase: "done" });
-		expect(steps).toBeLessThan(30);
+		expect(steps).toBeLessThan(80);
 		// The press that finishes says so instead of asking for another press.
 		expect(json(presses.filter(Boolean).at(-1))).toContain("Your reviews are up to date for this version");
 	});

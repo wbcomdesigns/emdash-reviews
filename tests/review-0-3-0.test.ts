@@ -265,7 +265,7 @@ describe("security review fixes", () => {
 	it("delete by email says more remain while waiting changes with that address are left", async () => {
 		const site = await open();
 		await site.rt.fixtures.plugin.setting("require_moderation", false);
-		for (let n = 0; n < 101; n += 1) {
+		for (let n = 0; n < 201; n += 1) {
 			await site.rt.fixtures.plugin.storage("reviews", `${site.entry}:e${n}`, {
 				entry: site.entry, collection: "posts", entryId: site.live, status: "published", stars: 4, body: "Live", has_text: true, rev: "r",
 				createdAt: "2026-01-01T00:00:00.000Z", pending_change: true, pending_stars: 1, pending_body: "Edit", pending_author: "Sam", pending_email: "sam@example.com",
@@ -448,4 +448,64 @@ describe("independent review fixes", () => {
 		const screen = (await site.admin({ type: "block_action", action_id: "decide", page: "/waiting", value: `read|${row.rev}|${site.entry}:ana` })) as { blocks: Row[] };
 		expect(screen.blocks).toContainEqual(expect.objectContaining({ type: "code", code: "**Not bold** and `not code`" }));
 	});
+});
+
+describe("Cloudflare walk fixes", () => {
+	it("My reviews links every page reviewed before 0.3.0 once the upgrade is done", async () => {
+		const site = await open({ fresh: false });
+		const posts: string[] = [];
+		for (let n = 0; n < 15; n += 1) {
+			posts.push((await site.rt.fixtures.content("posts", { data: { title: `Page ${n}` }, slug: `page-${n}`, status: "published" } as never)).id);
+		}
+		await seedOld(site, posts.map((post, n) => oldReview(site, post, "ana", { createdAt: `2026-01-01T00:00:${String(n).padStart(2, "0")}.000Z` })));
+		await finishUpgrade(site.rt);
+		const items = ((await within(() => site.call("mine", {}, site.as(member("ana"), "GET")))) as { items: Row[] }).items;
+		expect(items).toHaveLength(15);
+		expect(items.filter((item) => String(item.entry_url).includes("/posts/page-"))).toHaveLength(15);
+	});
+
+	it("any admin screen with budget left applies queued rating work", async () => {
+		const site = await open();
+		await site.rt.fixtures.plugin.setting("require_moderation", false);
+		for (const who of ["ana", "ben"]) await site.write(who, { stars: 5 });
+		for (const n of [1, 2]) {
+			await site.rt.fixtures.plugin.storage("rating_queue", `00000000${n}|q`, { entry: site.entry, recount: false, epoch: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: -1, t: 0 });
+		}
+		await within(() => site.admin({ type: "form_submit", action_id: `save_reply|${site.entry}:ana`, page: "/published", values: { body: "Thanks." } }));
+		expect(await site.rt.inspect.storage.list("rating_queue")).toHaveLength(0);
+		expect((await ratingOf(site))!.s5).toBe(0);
+	});
+
+	it("delete by email clears up to 200 waiting changes in one press", async () => {
+		const site = await open();
+		for (let n = 0; n < 150; n += 1) {
+			await site.rt.fixtures.plugin.storage("reviews", `${site.entry}:e${n}`, {
+				entry: site.entry, collection: "posts", entryId: site.live, status: "published", stars: 4, body: "Live", has_text: true, rev: "r",
+				createdAt: "2026-01-01T00:00:00.000Z", pending_change: true, pending_stars: 1, pending_body: "Edit", pending_author: "Sam", pending_email: "sam@example.com",
+			});
+		}
+		const result = (await within(() => site.admin({ type: "form_submit", action_id: "delete_email", page: "/published", values: { email: "sam@example.com" } }))) as {
+			toast: { message: string; type: string };
+		};
+		expect(result.toast).toEqual({ message: "Removed 150 waiting changes on other reviews.", type: "success" });
+	});
+
+	it("approving a Find result shows the other matches again", async () => {
+		const site = await open();
+		await site.write("needle1", { body: "needle one" });
+		await site.write("needle2", { body: "needle two" });
+		// 250 newer waiting reviews: more than the search can read again after a decision from the top.
+		for (let n = 0; n < 250; n += 1) {
+			await site.rt.fixtures.plugin.storage("reviews", `${site.entry}:f${n}`, {
+				entry: site.entry, collection: "posts", entryId: site.live, member_id: `f${n}`, author: `f${n}`, status: "pending", stars: 3, body: `filler ${n}`,
+				has_text: true, rev: "r", createdAt: new Date(Date.UTC(2030, 0, 1) + n * 1000).toISOString(),
+			});
+		}
+		const found = JSON.stringify(await site.admin({ type: "form_submit", action_id: "find", page: "/waiting", values: { q: "needle" } }));
+		expect(found).toContain("needle one");
+		const value = new RegExp(`"value":"(approve\\|[^"]*:needle2\\|[^"]*)"`).exec(found)![1]!;
+		const after = JSON.stringify(await within(() => site.admin({ type: "block_action", action_id: "decide", page: "/waiting", value })));
+		expect(after).toContain("needle one");
+		expect(after).not.toContain("No reviews on this page");
+	}, 120_000);
 });

@@ -476,12 +476,17 @@ async function listMine(ctx: PluginContext, memberId: string) {
 	const keys = [...new Set(mine.map((row) => asString(row.entry)).filter(Boolean))];
 	spend(b);
 	const ratings = keys.length ? await ctx.storage[RATINGS]!.getMany(keys) : new Map<string, unknown>();
-	const untitled = [...new Set(mine.filter((row) => !asString(row.entry_title)).map((row) => asString(row.entry)))];
-	const titles = untitled.length && spend(b) ? await ctx.storage[ENTRIES]!.getMany(untitled) : new Map<string, unknown>();
+	// Titles of reviews from before 0.3.0, and the addresses the upgrade looked up, for pages whose rating row has none.
+	const unknown = keys.filter((key) => {
+		const rating = asRecord(ratings.get(key));
+		return !(rating.v === V && asString(rating.url)) || mine.some((row) => asString(row.entry) === key && !asString(row.entry_title));
+	});
+	const titles = unknown.length && spend(b) ? await ctx.storage[ENTRIES]!.getMany(unknown) : new Map<string, unknown>();
 	const urls = new Map<string, string | null>();
 	for (const key of keys) {
 		const rating = asRecord(ratings.get(key));
 		if (rating.v === V && (asString(rating.url) || rating.live === false)) continue;
+		if (asString(asRecord(titles.get(key)).url)) continue;
 		if (b.used >= MAX_CALLS) break;
 		spend(b);
 		const split = key.indexOf(":");
@@ -495,7 +500,7 @@ async function listMine(ctx: PluginContext, memberId: string) {
 			const fetched = urls.get(key);
 			const live = rating.v === V ? rating.live !== false : fetched !== undefined ? Boolean(fetched) : titles.has(key);
 			const title = asString(row.entry_title) || asString(asRecord(titles.get(key)).title);
-			const url = (rating.v === V ? asString(rating.url) : "") || fetched || "";
+			const url = (rating.v === V ? asString(rating.url) : "") || asString(asRecord(titles.get(key)).url) || fetched || "";
 			return {
 				stars: row.stars,
 				title: row.title,

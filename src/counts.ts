@@ -191,9 +191,14 @@ export async function addToRating(
 	await moveRating(ctx, entry, change, opts.set);
 }
 
-/** Make sure a page that has a review waiting has a rating row, so its public address is kept for My reviews. One call. */
+/**
+ * Make sure a page that has a review waiting has a rating row with its public address, for My
+ * reviews: one call, or two when the row exists already (its address is set; rows from before 0.3.0
+ * and rows an approval made have none).
+ */
 export async function ensureRating(ctx: Ctx, entry: string, url: string): Promise<void> {
-	await ctx.storage[RATINGS]!.compareAndSet(entry, null, freshRating(entry, zero(), { url })).catch(() => undefined);
+	const made = await ctx.storage[RATINGS]!.compareAndSet(entry, null, freshRating(entry, zero(), { url })).catch(() => ({ applied: false }));
+	if (!made.applied && url) await ctx.storage[RATINGS]!.updateIf(entry, { where: { v: V }, set: { url } }).catch(() => undefined);
 }
 
 export type StatsChange = { pending?: number; changes?: number; counts?: Counts };
@@ -377,6 +382,11 @@ export async function drainQueue(ctx: Ctx, b: Budget, reserve = 0): Promise<numb
  * any, then counting one rating row that is being counted again.
  */
 export async function maintain(ctx: Ctx, b: Budget, reserve = 0, claims = 1): Promise<void> {
+	// Upkeep never turns an answer into an error: what failed is tried again on a later call.
+	await upkeep(ctx, b, reserve, claims).catch(() => undefined);
+}
+
+async function upkeep(ctx: Ctx, b: Budget, reserve: number, claims: number): Promise<void> {
 	for (let n = 0; n < claims; n += 1) {
 		const done = await drainQueue(ctx, b, reserve);
 		if (done === -1) break;

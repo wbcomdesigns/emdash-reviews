@@ -113,7 +113,9 @@ Run these on the Cloudflare testbed (registry install) and on the Node lab. On C
 | CF-7 | Unpublish a rated post, reload the post list; publish it again. Trash it and restore it | The badge goes, then comes back. After a restore (a draft) it stays hidden until published |
 | CF-8 | Waiting and Published: Next, Previous, Find, Search older, Read, Approve, Reject, Reply, Delete, approve and reject a change | Each answers with its toast and the list; nothing fails |
 | CF-9 | Delete a guest's reviews by email with waiting changes and more than 100 reviews | First press clears the waiting changes and says More remain; then Deleted 100 reviews. More remain; the last press says Deleted N reviews.; ratings settle after a few admin loads |
-| CF-10 | My reviews for a member with many reviews, then Delete all my reviews | Every page named and linked; all deleted in one press of the button |
+| CF-10 | My reviews for a member with many reviews (after CF-1, and on 0.2.x data), then Delete all my reviews | Every page named and linked; Deleting your reviews shows until the list is back; all deleted in one press of the button |
+| CF-12 | Cold load of a post (cache cleared), fill the form and press Submit at once | Submit shows busy, then the thanks message; the address bar never shows the review text |
+| CF-13 | Find a word in Waiting, then Approve or Reject one match | The other matches are still listed |
 | CF-11 | Settings: save every tab, Send a test notice; open the dashboard card | Each saves with its toast; the card shows the waiting count |
 
 ## Known gaps

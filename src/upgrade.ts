@@ -2,6 +2,7 @@ import type { PluginContext } from "emdash/plugin";
 
 import { entryKey, loadSettings, siteCollections } from "./core";
 import {
+	entryParts,
 	freshRating,
 	legacyNumbers,
 	MAX_CALLS,
@@ -41,6 +42,8 @@ import { asNumber, asRecord, asString } from "./util";
  *    at a time and made 0.3.0 rows that are not ready, so step 6 counts them from their reviews and
  *    later writes on those pages are counted.
  * 6. `counting`: rows that are not ready are counted field by field (stepCount).
+ * 7. `urls`: every live reviewed page without a stored address gets one (one lookup each, a few per
+ *    call), kept in `entries`, so My reviews links every page.
  *
  * A new install has nothing to bring over: plugin:install stores a finished record. Each state write
  * is guarded by `useq`, so a slow call (an hourly run) never puts back an older state.
@@ -52,7 +55,7 @@ export const KIT_DONE = "kit_done";
 export const ENTRIES = "entries";
 export const DONE = "done";
 
-type State = { phase: string; cols: string[]; ci: number; cursor: string; after: string; rcursor: string };
+type State = { phase: string; cols: string[]; ci: number; cursor: string; after: string; rcursor: string; ucursor: string };
 
 function stateOf(raw: Record<string, unknown>): State {
 	return {
@@ -62,6 +65,7 @@ function stateOf(raw: Record<string, unknown>): State {
 		cursor: asString(raw.cursor),
 		after: asString(raw.after),
 		rcursor: asString(raw.rcursor),
+		ucursor: asString(raw.ucursor),
 	};
 }
 
@@ -75,6 +79,7 @@ export function upgradeLabel(stats: Stats): string {
 	const phase = asString(stats.upgrade.phase);
 	if (phase === "entries" || phase === "kit") return "Reading page titles";
 	if (phase === "ratings" || phase === "legacy") return "Rebuilding page ratings";
+	if (phase === "urls") return "Looking up page links";
 	return "Counting the busiest pages";
 }
 
@@ -219,13 +224,40 @@ export async function upgradeStep(ctx: PluginContext, b: Budget, raw: unknown, r
 			else state.phase = "counting";
 			continue;
 		}
+		if (state.phase === "urls") {
+			// A read, at least one lookup, and a read and a write of what was found.
+			if (!fits(4)) break;
+			const room = MAX_CALLS - b.used - 1 - reserve - 3;
+			spend(b);
+			const page = await ctx.storage[RATINGS]!.query({ limit: room, cursor: state.ucursor || undefined });
+			const need = page.items.filter((item) => {
+				const row = asRecord(item.data);
+				return row.v === V && row.live !== false && !asString(row.url);
+			});
+			const found: Array<{ id: string; data: Record<string, unknown> }> = [];
+			for (const item of need) {
+				spend(b);
+				const { collection, entryId } = entryParts(item.id);
+				const url = await ctx.content?.getPublicUrl?.(collection, entryId).catch(() => null);
+				if (url) found.push({ id: item.id, data: { collection, entryId, url } });
+			}
+			if (found.length) {
+				spend(b, 2);
+				// Titles stored in step 3 are kept: read them back with the addresses.
+				const titles = await ctx.storage[ENTRIES]!.getMany(found.map((item) => item.id)).catch(() => new Map());
+				await ctx.storage[ENTRIES]!.putMany(found.map((item) => ({ id: item.id, data: { ...asRecord(titles.get(item.id)), ...item.data } })));
+			}
+			if (page.hasMore && page.cursor) state.ucursor = page.cursor;
+			else state.phase = DONE;
+			continue;
+		}
 		// counting
 		if (!fits(4)) break;
 		spend(b);
 		const open = await ctx.storage[RATINGS]!.query({ where: { ready: false }, limit: 1 });
 		const next = open.items[0];
 		if (!next) {
-			state.phase = DONE;
+			Object.assign(state, { phase: "urls", ucursor: "" });
 			continue;
 		}
 		// The save and the caller's reserve are kept out of stepCount's budget.

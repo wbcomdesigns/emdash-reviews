@@ -32,6 +32,10 @@ How it works now (details in SCOPE.md, Cloudflare section):
 - Independent Opus review of `git diff v0.2.2..0.3.0` (no tag yet: diff against `main`).
 - Owner QA, then merge, tag v0.3.0, publish.
 
+## For the starter
+
+`tests/block-check.ts` (vitest setup file) checks every admin answer in every test with `validateBlockResponse` from `@emdash-cms/blocks/server`, the validator EmDash runs on sandboxed admin responses. It belongs in `emdash-plugin-starter` with `bridge-count.ts`.
+
 ## Known limits (ponytail notes in the code)
 
 - Upgrade step 4 writes whole rating rows; a decision on a page in the one call between its read and its write is missing from that page's count.

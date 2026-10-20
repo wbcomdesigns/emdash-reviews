@@ -330,7 +330,7 @@ function detailBlocks(row: Row | null, id: string, title: string, view: View): R
 			],
 		},
 		// Member text exactly as written, never read as formatting.
-		{ type: "code", language: "text", code: text.full },
+		{ type: "code", code: text.full },
 	];
 	if (asString(full.owner_reply)) blocks.push({ type: "section", text: `Owner reply: ${wrapLong(asString(full.owner_reply))}` });
 	if (waiting) {
@@ -457,12 +457,16 @@ export async function renderList(ctx: PluginContext, b: Budget, view: View, stat
 				// Menus cannot confirm, so Delete opens the review, whose Delete button asks first.
 				["Delete", "ask_delete"],
 			];
-	const table = tableRows(list.items, titles, view, actions, updating ? "Title not read yet" : "Removed page");
+	// On a Find page, decisions come back to the same matches: their stamps start the search again at
+	// the newest match shown (one millisecond after it), not at the top of the list.
+	const top = asString(list.items[0]?.createdAt);
+	const stampView: View = view.q && top ? { ...view, dir: "before", bound: new Date(Date.parse(top) + 1).toISOString() } : view;
+	const table = tableRows(list.items, titles, stampView, actions, updating ? "Title not read yet" : "Removed page");
 	const total = !stats.ready ? null : waiting ? stats.pending + stats.changes : stats.published;
 	const empty = waiting
 		? { title: "Nothing waiting", description: "New reviews land here first." }
 		: { title: "No published reviews yet", description: "Approved reviews show here so you can reply or remove one." };
-	return {
+	const screen: BlockResponse = {
 		blocks: [
 			{ type: "header", text: waiting ? "Waiting" : "Published" },
 			...(updating ? progressBlocks(view, stats) : waiting ? setupBlocks(ctx, stats.kitDone === true) : []),
@@ -481,11 +485,15 @@ export async function renderList(ctx: PluginContext, b: Budget, view: View, stat
 				],
 				submit: { label: "Find", action_id: "find" },
 			},
-			...(openId ? detailBlocks(opened, openId, titles.get(asString(opened?.entry)) ?? "", view) : []),
+			...(openId ? detailBlocks(opened, openId, titles.get(asString(opened?.entry)) ?? "", stampView) : []),
 			...pager(view, list, total),
 			table.length
 				? { type: "table", page_action_id: `${view.kind}_page`, columns: COLUMNS, rows: table }
-				: { type: "empty", title: view.dir || view.q ? "No reviews on this page" : empty.title, description: view.q ? "No reviews match that search here." : empty.description },
+				: {
+						type: "empty",
+						title: view.q ? (list.hasOlder ? "No matches in the reviews searched so far" : "No reviews match that search") : view.dir ? "No reviews on this page" : empty.title,
+						description: view.q ? (list.hasOlder ? "Press Search older to look further back." : "Try another word, a name or an email.") : empty.description,
+					},
 			!waiting
 				? {
 						type: "accordion",
@@ -505,6 +513,9 @@ export async function renderList(ctx: PluginContext, b: Budget, view: View, stat
 		].filter(Boolean) as Row[],
 		toast,
 	};
+	// Whatever the screen left of the budget applies queued rating work (after every read the screen needed).
+	if (!updating) await maintain(ctx, b);
+	return screen;
 }
 
 type SettingsView = { settings: Settings; site: SiteCollection[]; noMail: boolean };
@@ -755,8 +766,7 @@ async function routeAdmin(input: unknown, ctx: PluginContext, routeCtx?: RouteUi
  */
 async function pageLoad(ctx: PluginContext, b: Budget, view: View): Promise<BlockResponse> {
 	const reserve = 2 + AFTER_ROWS;
-	const { stats, done, finished } = await siteAndUpgrade(ctx, b, true, reserve);
-	if (done) await maintain(ctx, b, reserve);
+	const { stats, finished } = await siteAndUpgrade(ctx, b, true, reserve);
 	// The step that finished the upgrade read the record before it: show it as finished.
 	return renderList(ctx, b, view, finished ? { ...stats, ready: true, upgrade: { ...stats.upgrade, phase: "done" } } : stats);
 }
@@ -853,23 +863,38 @@ async function deleteByEmail(ctx: PluginContext, email: string): Promise<BlockRe
 	const view: View = { kind: "published", page: 1, q: "", dir: "", bound: "" };
 	const b = budget();
 	if (!email) return renderList(ctx, b, view, null, { message: "Enter an email.", type: "error" });
-	spend(b);
-	const editRead = await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 });
-	const edits = rows(editRead);
 	const more = " More remain: press Delete those reviews again.";
-	if (edits.length) {
-		// This press clears the waiting changes (read, write, the site counts) and checks for the guest's
-		// own reviews; the next press deletes those. A privacy erase never reports done while any are left.
-		spend(b, 3);
-		const cleared = edits.map(({ id, ...data }) => ({
+	// Waiting changes with this address on other guests' reviews: cleared first, up to two reads of 100 a
+	// press (each a read and a write), then the guest's own reviews are counted to say whether more remain.
+	const cleared: Row[] = [];
+	const changes: StatsChange[] = [];
+	let editsLeft = false;
+	for (let page = 0; page < 2; page += 1) {
+		if (b.used + 2 + 2 + 3 > MAX_CALLS) {
+			editsLeft = true;
+			break;
+		}
+		spend(b);
+		const read = await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 });
+		const edits = rows(read);
+		editsLeft = read.hasMore;
+		if (!edits.length) break;
+		spend(b);
+		const next = edits.map(({ id, ...data }) => ({
 			id,
 			data: { ...data, pending_change: false, pending_stars: null, pending_title: "", pending_body: "", pending_has_text: false, pending_author: "", pending_email: "", rev: crypto.randomUUID() },
 		}));
-		await ctx.storage.reviews.putMany(cleared);
+		await ctx.storage.reviews.putMany(next);
+		cleared.push(...edits);
+		changes.push(...edits.map((row, i) => statsChange(row, next[i]!.data)));
+		if (!read.hasMore) break;
+	}
+	if (cleared.length) {
+		spend(b, 2);
 		const left = await ctx.storage.reviews.count({ email });
-		const stats = await moveStats(ctx, sumChanges(edits.map((row, i) => statsChange(row, cleared[i]!.data))));
-		const remain = editRead.hasMore || left > 0;
-		const message = `Removed ${edits.length} waiting ${edits.length === 1 ? "change" : "changes"} on other reviews.${remain ? more : ""}`;
+		const stats = await moveStats(ctx, sumChanges(changes));
+		const remain = editsLeft || left > 0;
+		const message = `Removed ${cleared.length} waiting ${cleared.length === 1 ? "change" : "changes"} on other reviews.${remain ? more : ""}`;
 		return renderList(ctx, b, view, stats, { message, type: remain ? "info" : "success" });
 	}
 	const done = await eraseRows(ctx, b, { email }, 1 + AFTER_ROWS);
