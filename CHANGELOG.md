@@ -2,6 +2,23 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.3.0]
+
+Every page, action and visitor request now fits Cloudflare's limit of 10 requests per plugin call. After updating, open Reviews in the admin once: it brings 0.2 data over in a few steps while visitors keep seeing reviews. No new permission. Copy the kit again after you update.
+
+- Improve  - Writing, approving, rejecting and deleting a review move the stored counts in the same request, instead of reading every review of the page again.
+- Improve  - Rating badges for a page of cards come from one read, and a badge hides as soon as its page is unpublished or deleted.
+- Improve  - My reviews reads a member's reviews, page titles and page links in a few reads, however many reviews they wrote.
+- Improve  - Waiting and Published read 25 reviews at a time; Next and Previous page by date, and Find searches a few hundred reviews per press with Search older for the rest.
+- Improve  - Settings and the visitor routes read every setting in one request.
+- Improve  - Delete all my reviews erases up to 300 reviews per request and the kit repeats it until none are left; Delete a guest's reviews by email erases 100 per press.
+- Improve  - The site counts on Waiting (waiting, average rating) come from one stored record instead of reading every page's rating.
+- Fix      - Two reviews sent at the same moment, or one review sent twice, are never counted twice or lost; the slower one is asked to try again in a moment.
+- Fix      - Approving or rejecting a review that changed after the page loaded is refused in the same write that would apply it.
+- Fix      - Ratings that 0.2.0 lost are rebuilt for every page by the update, not on a visitor's request.
+- Dev      - New storage: stats, entries and rating_queue, and a ready index on ratings. Visitor reads never write.
+- Dev      - tests/bridge-budget.test.ts measures every route, hook, admin action and the hourly task at 9 requests or fewer on a busy site, and tests/review-0-3-0.test.ts races every counter.
+
 ## [0.2.2]
 
 Copy the kit again after you update.

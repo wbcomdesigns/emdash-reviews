@@ -3,7 +3,7 @@
 **1. Your site needs a sandbox runner.** Registry plugins run in a sandbox. Until the site has one, Admin, Plugins shows "No plugins configured" and there is no Registry in the menu.
 
 - **Node:** in your site, run `npm install @emdash-cms/sandbox-workerd workerd`, then add `sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",` inside `emdash({ ... })` in `astro.config.mjs`.
-- **Cloudflare: not supported yet.** On Cloudflare Workers EmDash gives each plugin call 10 requests to the site, and several of this plugin's pages and actions need more, so they fail. A release that fits is in progress. Node sites are not affected.
+- **Cloudflare: not supported yet.** On Cloudflare Workers EmDash gives each plugin call 10 requests to the site. 0.3.0 is built to stay within that and is being checked on a live Cloudflare site. Node sites are not affected.
 
 Stop the dev server and start it again. **Registry** now shows in the admin menu.
 
@@ -19,7 +19,7 @@ Checked on EmDash 1.3.1 with the `blog` template on Node.
    ```bash
    kit="$(mktemp -d)" &&
      git clone --depth 1 \
-       --branch v0.2.2 \
+       --branch v0.3.0 \
        https://github.com/wbcomdesigns/emdash-reviews \
        "$kit/emdash-reviews" &&
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
@@ -31,4 +31,4 @@ Checked on EmDash 1.3.1 with the `blog` template on Node.
 
 After every update, run step 2 with the new tag.
 
-Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.2.2/docs/website/getting-started/install.md
+Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.3.0/docs/website/getting-started/install.md

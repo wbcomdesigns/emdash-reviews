@@ -37,3 +37,23 @@ export async function withPosts(rt: Awaited<ReturnType<typeof openSite>>["rt"]) 
 	const draft = await rt.fixtures.content("posts", { data: { title: "Secret Draft" }, slug: "secret-draft" } as never);
 	return { live: live.id, draft: draft.id };
 }
+
+type Runtime = Awaited<ReturnType<typeof openSite>>["rt"];
+
+/** What a fresh registry install runs first: schedules the notice and starts the site record. */
+export async function install(rt: Runtime) {
+	await rt.transport.invokeHook("plugin:install", {});
+}
+
+/**
+ * Bring rows seeded the way 0.2.x stored them into the 0.3.0 counts: press Continue on the
+ * progress screen until the lists show. Returns how many presses it took.
+ */
+export async function finishUpgrade(rt: Runtime, max = 60): Promise<number> {
+	for (let n = 0; n < max; n += 1) {
+		const site = await rt.inspect.storage.get<{ ready?: boolean; upgrade?: { phase?: string } }>("stats", "site");
+		if (site?.ready && site.upgrade?.phase === "done") return n;
+		await rt.transport.invokeRoute("admin", { type: "block_action", action_id: "upgrade", page: "/waiting", value: "waiting|1|||" });
+	}
+	throw new Error("The upgrade did not finish");
+}

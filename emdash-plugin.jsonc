@@ -39,7 +39,16 @@
 			"indexes": ["status", "entry", "member_id", "createdAt", "email", "pending_change", "stars", "has_text", "pending_email", "publishedAt"]
 		},
 		"ratings": {
-			"indexes": ["collection"]
+			"indexes": ["collection", "ready"]
+		},
+		"stats": {
+			"indexes": []
+		},
+		"entries": {
+			"indexes": []
+		},
+		"rating_queue": {
+			"indexes": []
 		}
 	},
 	"admin": {

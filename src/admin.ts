@@ -1,48 +1,67 @@
 import type { PluginContext } from "emdash/plugin";
 
-import { allowedCollections, allReviews, entryRefs, noMailProvider, sendMail, siteCollections, syncRating, waitingCount } from "./core";
+import { loadSettings, noMailProvider, sendMail, siteCollections, type Settings, type SiteCollection } from "./core";
+import {
+	addToRating,
+	budget,
+	drainQueue,
+	getStats,
+	MAX_CALLS,
+	minus,
+	moveRating,
+	moveStats,
+	partOf,
+	spend,
+	statsChange,
+	sumChanges,
+	type Budget,
+	type Stats,
+	type StatsChange,
+} from "./counts";
+import { eraseRows } from "./erase";
+import { ENTRIES, siteAndUpgrade, upgradeDone, upgradeLabel } from "./upgrade";
 import { asBoolean, asNumber, asRecord, asString, asStringArray, plainText, rows } from "./util";
 import { guestKey } from "./visitor-key";
 
 type Toast = { message: string; type: "success" | "error" | "info" };
 type BlockResponse = { blocks: Array<Record<string, unknown>>; toast?: Toast };
 type Kind = "waiting" | "published";
-type View = { kind: Kind; page: number; q: string; replyId?: string; detailId?: string };
+/** `dir` and `bound` page by time: "before" shows reviews older than `bound`, "after" newer ones. */
+type View = { kind: Kind; page: number; q: string; dir: "" | "before" | "after"; bound: string; replyId?: string; detailId?: string };
 type RouteUi = { ui?: { surface?: string }; requestMeta?: { ip?: string | null } };
+type Row = Record<string, unknown>;
 
 const PAGE_SIZE = 25;
-// ponytail: find and paging walk up to this many rows of one status. Index a search field if a site passes it.
-const SCAN = 5000;
 const REPO = "https://github.com/wbcomdesigns/emdash-reviews";
-const KIT_DONE = "kit_done";
 const TEST_AT = "test_notice_at";
 const REPLY_MAX = 1000;
 const CLIP = 80;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** Calls a list screen needs after its rows: the page titles and the week's count. */
+const AFTER_ROWS = 2;
 
-// A member can rewrite their own review. The stamp ties an admin's click to the exact
-// version they were shown, so a rewrite cannot ride an approval.
-// ponytail: check-then-write is not atomic. A rewrite landing in the few milliseconds
-// between the check and the write would still be decided; needs compare-and-set in
-// plugin storage to close fully.
-function stamped(action: string, row: Record<string, unknown>, view: View): string {
-	return [action, asString(row.rev), asString(row.id), view.kind, String(view.page), encodeURIComponent(view.q)].join("|");
+const viewParts = (view: View) => [view.kind, String(view.page), encodeURIComponent(view.q), view.dir, view.bound];
+
+// A member can rewrite their own review. The stamp ties an admin's click to the exact version
+// they were shown, and every decision is one write guarded by it, so a rewrite cannot ride an approval.
+function stamped(action: string, row: Row, view: View): string {
+	return [action, asString(row.rev), asString(row.id), ...viewParts(view)].join("|");
 }
 
-function parseStamped(value: unknown): { action: string; stamp: string; id: string; kind: Kind; page: number; q: string } {
-	const [action = "", stamp = "", id = "", kind = "waiting", page = "1", q = ""] = asString(value).split("|");
+function viewOf(parts: string[], fallback: Kind = "waiting"): View {
+	const [kind = fallback, page = "1", q = "", dir = "", bound = ""] = parts;
 	return {
-		action,
-		stamp,
-		id,
-		kind: kind === "published" ? "published" : "waiting",
+		kind: kind === "published" ? "published" : kind === "waiting" ? "waiting" : fallback,
 		page: Math.max(1, asNumber(page) ?? 1),
 		q: decodeURIComponent(q),
+		dir: dir === "before" || dir === "after" ? dir : "",
+		bound,
 	};
 }
 
-function pageOf(input: Record<string, unknown>): string {
-	return asString(input.page) || asString(input.widget);
+function parseStamped(value: unknown): { action: string; stamp: string; id: string; view: View } {
+	const [action = "", stamp = "", id = "", ...rest] = asString(value).split("|");
+	return { action, stamp, id, view: viewOf(rest) };
 }
 
 function kindOf(page: string): Kind | "settings" {
@@ -51,45 +70,13 @@ function kindOf(page: string): Kind | "settings" {
 	return "waiting";
 }
 
-function viewFrom(input: Record<string, unknown>, fallback: Kind): View {
-	const values = asRecord(input.values);
-	const raw = asString(input.value);
-	const parsed = raw.includes("|") ? parseStamped(raw) : { page: asNumber(raw) ?? 1, q: "" };
-	const q = asString(values.q) || parsed.q || asString(input.q);
-	const page = asNumber(values.page) ?? parsed.page ?? asNumber(input.page_number) ?? 1;
-	return { kind: fallback, page: Math.max(1, page), q };
-}
-
-function isDashboard(input: Record<string, unknown>, routeCtx?: RouteUi): boolean {
+function isDashboard(input: Row, routeCtx?: RouteUi): boolean {
 	return routeCtx?.ui?.surface === "dashboard-widget" || asString(input.widget) === "waiting";
-}
-
-async function loadSettings(ctx: PluginContext) {
-	const [site, rawOpen, moderate, who, askEmail, notify, notifyTo] = await Promise.all([
-		siteCollections(ctx),
-		allowedCollections(ctx),
-		ctx.settings.get<boolean>("require_moderation"),
-		ctx.settings.get<string>("who"),
-		ctx.settings.get<boolean>("ask_guest_email"),
-		ctx.settings.get<boolean>("notify"),
-		ctx.settings.get<string>("notify_to"),
-	]);
-	const known = new Set(site.map((item) => item.slug));
-	return {
-		site,
-		open: rawOpen.filter((slug) => known.has(slug)),
-		moderate: moderate !== false,
-		who: asString(who) === "members" ? "members" : "anyone",
-		askEmail: askEmail === true,
-		// Off until the owner turns it on with an address: a plugin cannot read the admin email.
-		notify: notify === true,
-		notifyTo: asString(notifyTo),
-	};
 }
 
 /** Soft-break a long word so a Block Kit table can wrap instead of scrolling sideways. */
 function wrapLong(text: string): string {
-	return text.replace(/\S{32,}/g, (word) => word.match(/.{1,32}/g)?.join("\u200b") ?? word);
+	return text.replace(/\S{32,}/g, (word) => word.match(/.{1,32}/g)?.join("​") ?? word);
 }
 
 function clip(text: string): string {
@@ -99,7 +86,7 @@ function clip(text: string): string {
 	return wrapLong(cut);
 }
 
-function reviewText(row: Record<string, unknown>): { title: string; body: string; stars: unknown; full: string } {
+function reviewText(row: Row): { title: string; body: string; stars: unknown; full: string } {
 	const title = row.pending_change === true ? asString(row.pending_title) : asString(row.title);
 	const body = row.pending_change === true ? asString(row.pending_body) : asString(row.body);
 	const stars = row.pending_change === true ? (asNumber(row.pending_stars) ?? row.stars) : row.stars;
@@ -107,7 +94,7 @@ function reviewText(row: Record<string, unknown>): { title: string; body: string
 	return { title, body, stars, full };
 }
 
-function noteFor(row: Record<string, unknown>): string {
+function noteFor(row: Row): string {
 	const bits: string[] = [];
 	bits.push(row.guest === true ? "Guest" : "Member");
 	if (row.pending_change === true) bits.push("Change waiting");
@@ -116,7 +103,7 @@ function noteFor(row: Record<string, unknown>): string {
 	return bits.join(" · ");
 }
 
-function confirm(title: string, text: string, ok: string): Record<string, unknown> {
+function confirm(title: string, text: string, ok: string): Row {
 	return { title, text, confirm: ok, deny: "Cancel" };
 }
 
@@ -127,11 +114,11 @@ function installGuide(ctx: PluginContext): string {
 /**
  * The first screen tells the owner where visitor pages come from: a registry plugin cannot add
  * pages, so until the site kit is copied the visitor addresses are the site's 404. Shown until the
- * owner says the pages are set up, then one link to the guide.
+ * owner says the pages are set up, then one link to the guide. No reads: the answer is on the site record.
  */
-async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unknown>>> {
+function setupBlocks(ctx: PluginContext, kitDone: boolean): Row[] {
 	const guide = { type: "link", label: "Install guide", target: { kind: "external", url: installGuide(ctx) } };
-	if ((await ctx.kv.get<boolean>(KIT_DONE)) === true) {
+	if (kitDone) {
 		return [{ type: "actions", elements: [guide, { type: "button", label: "Show the setup steps again", action_id: "kit_again" }] }];
 	}
 	const tag = `v${asString(ctx.plugin.version)}`;
@@ -169,73 +156,119 @@ async function setupBlocks(ctx: PluginContext): Promise<Array<Record<string, unk
 		{ type: "context", text: "The command prints the lines to paste into your templates and the menu link to add in Admin, Menus." },
 		{
 			type: "actions",
-			elements: [{ type: "button", label: "Visitor pages are set up", action_id: KIT_DONE, style: "primary" }, guide],
+			elements: [{ type: "button", label: "Visitor pages are set up", action_id: "kit_done", style: "primary" }, guide],
 		},
 	];
 }
 
-async function listed(ctx: PluginContext, view: View) {
-	const newest = { createdAt: "desc" } as const;
-	let items =
-		view.kind === "waiting"
-			? [
-					...(await allReviews(ctx, { status: "pending" }, newest, SCAN)),
-					...(await allReviews(ctx, { status: "published", pending_change: true }, newest, SCAN)),
-				].sort((a, b) => asString(b.createdAt).localeCompare(asString(a.createdAt)))
-			: await allReviews(ctx, { status: "published" }, newest, SCAN);
-	const needle = view.q.toLowerCase();
-	if (needle) {
-		items = items.filter((row) =>
-			[row.title, row.body, row.pending_title, row.pending_body, row.author, row.pending_author, row.email, row.pending_email, row.owner_reply].some((value) =>
-				asString(value).toLowerCase().includes(needle),
-			),
-		);
-	}
-	const total = items.length;
-	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
-	const page = Math.min(Math.max(view.page, 1), pages);
-	const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-	return { slice, total, page, pages, view: { ...view, page } };
+/** Reviews that match a word in the review, a name or an email. */
+function matches(row: Row, needle: string): boolean {
+	if (!needle) return true;
+	return [row.title, row.body, row.pending_title, row.pending_body, row.author, row.pending_author, row.email, row.pending_email, row.owner_reply].some((value) =>
+		asString(value).toLowerCase().includes(needle),
+	);
 }
 
-/** Site-wide numbers from counts and the per-page rating rows, never from one capped list. */
-async function listStats(ctx: PluginContext) {
-	const since = new Date(Date.now() - WEEK_MS).toISOString();
-	const [waiting, week] = await Promise.all([
-		waitingCount(ctx),
-		// By approval time. Reviews approved before 0.2.1 carry no publishedAt and are not counted here.
-		ctx.storage.reviews.count({ status: "published", publishedAt: { gte: since } }),
-	]);
-	let stars = 0;
-	let count = 0;
-	let cursor: string | undefined;
-	do {
-		const page = await ctx.storage.ratings.query({ limit: 100, cursor });
-		for (const row of rows(page)) {
-			const n = asNumber(row.count) ?? 0;
-			stars += (asNumber(row.average) ?? 0) * n;
-			count += n;
+type Listed = { items: Row[]; older: string; newer: string; hasOlder: boolean; hasNewer: boolean };
+
+/**
+ * One page of a list, by time. Waiting is two sources (waiting reviews, and published reviews with a
+ * change waiting; the second only when the site record says there are any). Each source is read
+ * 100 at a time from the bound; rows past the oldest point every source has covered wait for the
+ * next page, so merging never skips a row. A search reads as many rounds as the budget allows and
+ * offers Search older from where it stopped.
+ * ponytail: paging by createdAt skips a row that has exactly the same time as the page bound. Times
+ * are written to the millisecond, so that needs two writes in the same millisecond at a page edge.
+ */
+async function listed(ctx: PluginContext, b: Budget, view: View, stats: Stats): Promise<Listed> {
+	const sources: Row[] =
+		view.kind === "waiting" ? [{ status: "pending" }, ...(stats.changes > 0 ? [{ status: "published", pending_change: true }] : [])] : [{ status: "published" }];
+	const newer = view.dir === "after";
+	const needle = view.q.toLowerCase();
+	const found: Row[] = [];
+	let bound = view.bound;
+	let more = false;
+	for (;;) {
+		if (b.used + sources.length + AFTER_ROWS > MAX_CALLS) {
+			more = true;
+			break;
 		}
-		cursor = page.hasMore ? page.cursor : undefined;
-	} while (cursor);
-	const average = count ? Math.round((stars / count) * 10) / 10 : 0;
+		const reads = await Promise.all(
+			sources.map((where) => {
+				spend(b);
+				return ctx.storage.reviews.query({
+					where: { ...where, ...(bound ? { createdAt: newer ? { gt: bound } : { lt: bound } } : {}) } as never,
+					orderBy: { createdAt: newer ? "asc" : "desc" },
+					limit: needle ? 100 : PAGE_SIZE + 1,
+				});
+			}),
+		);
+		// The point every source has covered: past it, a source with more rows may still have some.
+		let edge = "";
+		for (const read of reads) {
+			const last = asString(asRecord(read.items[read.items.length - 1]?.data).createdAt);
+			if (!read.hasMore || !last) continue;
+			if (!edge || (newer ? last < edge : last > edge)) edge = last;
+		}
+		const merged = reads
+			.flatMap((read) => rows(read))
+			.filter((row) => !edge || (newer ? asString(row.createdAt) <= edge : asString(row.createdAt) >= edge))
+			.sort((x, y) => (newer ? 1 : -1) * asString(x.createdAt).localeCompare(asString(y.createdAt)));
+		found.push(...merged.filter((row) => matches(row, needle)));
+		more = Boolean(edge);
+		if (found.length > PAGE_SIZE || !more) break;
+		bound = edge;
+	}
+	const page = found.slice(0, PAGE_SIZE);
+	const items = newer ? page.reverse() : page;
+	const cut = found.length > PAGE_SIZE;
+	// Where the next read starts: the last row shown when rows were left over, else where the reads stopped.
+	const reach = cut ? asString(page[page.length - 1]?.createdAt) : bound;
+	const first = asString(items[0]?.createdAt);
+	const last = asString(items[items.length - 1]?.createdAt);
+	return newer
+		? { items, older: last, newer: cut || more ? reach : "", hasOlder: true, hasNewer: cut || more }
+		: { items, older: cut ? last : reach, newer: first, hasOlder: cut || more, hasNewer: Boolean(view.bound) };
+}
+
+/** Site-wide numbers: the site record, and one count for the week. */
+async function statsBlock(ctx: PluginContext, b: Budget, stats: Stats): Promise<Row> {
+	const since = new Date(Date.now() - WEEK_MS).toISOString();
+	spend(b);
+	// By approval time. Reviews approved before 0.2.1 carry no publishedAt and are not counted here.
+	const week = await ctx.storage.reviews.count({ status: "published", publishedAt: { gte: since } });
 	return {
 		type: "stats",
 		items: [
-			{ label: "Waiting", value: String(waiting) },
+			{ label: "Waiting", value: String(stats.pending + stats.changes) },
 			{ label: "Published this week", value: String(week) },
-			{ label: "Average rating", value: average ? average.toFixed(1) : "-" },
+			{ label: "Average rating", value: stats.average ? stats.average.toFixed(1) : "-" },
 		],
 	};
 }
 
-async function tableRows(ctx: PluginContext, items: Array<Record<string, unknown>>, view: View, actions: Array<[string, string]>) {
-	const refs = await entryRefs(ctx, items);
+/** Page titles stored on 0.3.0 reviews, and for older ones the titles the upgrade stored. At most one read. */
+async function titlesFor(ctx: PluginContext, b: Budget, list: Row[]): Promise<Map<string, string>> {
+	const out = new Map<string, string>();
+	const missing = new Set<string>();
+	for (const row of list) {
+		const key = asString(row.entry);
+		if (asString(row.entry_title)) out.set(key, asString(row.entry_title));
+		else if (key) missing.add(key);
+	}
+	if (missing.size && spend(b)) {
+		const found = await ctx.storage[ENTRIES]!.getMany([...missing]);
+		for (const [key, data] of found) out.set(key, asString(asRecord(data).title));
+	}
+	return out;
+}
+
+function tableRows(items: Row[], titles: Map<string, string>, view: View, actions: Array<[string, string]>) {
 	return items.map((row) => {
 		const text = reviewText(row);
 		return {
 			review: clip(text.full) || "Stars only",
-			on: refs.get(asString(row.entry))?.title ?? "Removed page",
+			on: titles.get(asString(row.entry)) || "Removed page",
 			stars: text.stars ? `${text.stars} of 5` : "-",
 			author: asString(row.author),
 			note: noteFor(row) || "-",
@@ -249,6 +282,7 @@ async function tableRows(ctx: PluginContext, items: Array<Record<string, unknown
 	});
 }
 
+// No column is sortable: the order is newest first, the same order the pages follow.
 const COLUMNS = [
 	{ key: "review", label: "Review" },
 	{ key: "on", label: "Page" },
@@ -258,50 +292,43 @@ const COLUMNS = [
 	{ key: "action", label: "Decision", format: "element" },
 ];
 
-function pager(view: View, page: number, pages: number, total: number) {
-	const q = encodeURIComponent(view.q);
-	const button = (label: string, next: number) => ({
+function pager(view: View, list: Listed, total: number): Row[] {
+	const button = (label: string, page: number, dir: "before" | "after", bound: string) => ({
 		type: "button",
 		label,
 		action_id: "page",
-		value: `${view.kind}|${next}|${q}`,
+		value: [view.kind, String(page), encodeURIComponent(view.q), dir, bound].join("|"),
 	});
 	const elements = [
-		page > 1 ? button("Previous", page - 1) : null,
-		page < pages ? button("Next", page + 1) : null,
+		view.page > 1 && list.hasNewer && list.newer ? button("Previous", view.page - 1, "after", list.newer) : null,
+		list.hasOlder && list.older ? button(view.q ? "Search older" : "Next", view.page + 1, "before", list.older) : null,
 	].filter(Boolean);
-	return [
-		{ type: "context", text: `${total} ${total === 1 ? "review" : "reviews"}. Page ${page} of ${pages}.` },
-		elements.length ? { type: "actions", elements } : null,
-	].filter(Boolean) as Array<Record<string, unknown>>;
+	const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+	const text = view.q
+		? `${list.items.length} found on this page${list.hasOlder ? ". Older reviews were not searched yet" : ""}.`
+		: `${total} ${total === 1 ? "review" : "reviews"}. Page ${Math.min(view.page, pages)} of ${pages}.`;
+	return [{ type: "context", text }, elements.length ? { type: "actions", elements } : null].filter(Boolean) as Row[];
 }
 
-async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Record<string, unknown>>> {
-	if (!view.detailId && !view.replyId) return [];
-	const id = view.detailId || view.replyId || "";
-	// Storage returns the data without its key; the buttons below need the id in their value.
-	const row: Record<string, unknown> = { ...asRecord(await ctx.storage.reviews.get(id)), id };
-	if (!row.entry) return [{ type: "banner", title: "That review no longer exists.", variant: "alert" }];
-	const text = reviewText(row);
-	const refs = await entryRefs(ctx, [row]);
-	const pageTitle = refs.get(asString(row.entry))?.title || "Removed page";
+function detailBlocks(row: Row | null, id: string, title: string, view: View): Row[] {
+	if (!row) return [{ type: "banner", title: "That review no longer exists.", variant: "alert" }];
+	const full: Row = { ...row, id };
+	const text = reviewText(full);
 	const waiting = view.kind === "waiting";
-	const blocks: Array<Record<string, unknown>> = [
+	const blocks: Row[] = [
 		{ type: "header", text: waiting ? "Review to decide" : view.replyId ? "Reply" : "Review" },
 		{
 			type: "fields",
 			fields: [
-				{ label: "Author", value: asString(row.author) || "-" },
+				{ label: "Author", value: asString(full.author) || "-" },
 				{ label: "Stars", value: text.stars ? `${text.stars} of 5` : "-" },
-				{ label: "Page", value: pageTitle },
-				{ label: "Note", value: noteFor(row) || "-" },
+				{ label: "Page", value: title || "Removed page" },
+				{ label: "Note", value: noteFor(full) || "-" },
 			],
 		},
 		{ type: "section", text: wrapLong(text.full) },
 	];
-	if (asString(row.owner_reply)) {
-		blocks.push({ type: "section", text: `Owner reply: ${wrapLong(asString(row.owner_reply))}` });
-	}
+	if (asString(full.owner_reply)) blocks.push({ type: "section", text: `Owner reply: ${wrapLong(asString(full.owner_reply))}` });
 	if (waiting) {
 		blocks.push({
 			type: "actions",
@@ -311,7 +338,7 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 					label: "Approve",
 					action_id: "decide",
 					style: "primary",
-					value: stamped("approve", row, view),
+					value: stamped("approve", full, view),
 					confirm: confirm("Publish this review?", text.full.slice(0, 200), "Publish"),
 				},
 				{
@@ -319,7 +346,7 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 					label: "Reject",
 					action_id: "decide",
 					style: "danger",
-					value: stamped("reject", row, view),
+					value: stamped("reject", full, view),
 					confirm: confirm("Take this review off the queue?", text.full.slice(0, 200), "Reject"),
 				},
 			],
@@ -332,12 +359,12 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 				{
 					type: "text_input",
 					action_id: "body",
-					label: `Reply to ${asString(row.author) || "this review"}`,
+					label: `Reply to ${asString(full.author) || "this review"}`,
 					multiline: true,
-					initial_value: asString(row.owner_reply),
+					initial_value: asString(full.owner_reply),
 				},
 			],
-			submit: { label: "Save reply", action_id: `save_reply|${id}` },
+			submit: { label: "Save reply", action_id: `save_reply|${id}|${viewParts(view).join("|")}` },
 		});
 	} else {
 		blocks.push({
@@ -348,23 +375,70 @@ async function detailBlocks(ctx: PluginContext, view: View): Promise<Array<Recor
 					label: "Delete",
 					action_id: "decide",
 					style: "danger",
-					value: stamped("delete", row, view),
+					value: stamped("delete", full, view),
 					confirm: confirm("Delete this review?", "It leaves the site and is removed for good. This cannot be undone.", "Delete"),
 				},
 			],
 		});
 	}
 	// Close returns to the same list page without the opened review, in the same row as the other buttons.
-	const close = { type: "button", label: "Close", action_id: "page", value: `${view.kind}|${view.page}|${encodeURIComponent(view.q)}` };
+	const close = { type: "button", label: "Close", action_id: "page", value: viewParts(view).join("|") };
 	const last = blocks[blocks.length - 1];
 	if (last?.type === "actions" && Array.isArray(last.elements)) last.elements.push(close);
 	else blocks.push({ type: "actions", elements: [close] });
 	return blocks;
 }
 
-export async function renderList(ctx: PluginContext, view: View, toast?: Toast): Promise<BlockResponse> {
-	const { slice, total, page, pages, view: current } = await listed(ctx, view);
-	const waiting = current.kind === "waiting";
+/** While 0.2.x data is brought over, the lists wait behind this screen. No reads. */
+function progressScreen(view: View, stats: Stats, toast?: Toast): BlockResponse {
+	return {
+		blocks: [
+			{ type: "header", text: view.kind === "waiting" ? "Waiting" : "Published" },
+			{
+				type: "banner",
+				title: "Updating your reviews for this version",
+				description: `${upgradeLabel(stats)}. Visitors keep seeing reviews and ratings meanwhile. A busy site takes a few steps.`,
+			},
+			{ type: "actions", elements: [{ type: "button", label: "Continue", action_id: "upgrade", style: "primary", value: viewParts(view).join("|") }] },
+			{ type: "context", text: "It also continues by itself once an hour." },
+		],
+		toast,
+	};
+}
+
+/** The step that ends the upgrade has used the budget, so the lists come on the next press. No reads. */
+function finishedScreen(view: View): BlockResponse {
+	return {
+		blocks: [
+			{ type: "header", text: view.kind === "waiting" ? "Waiting" : "Published" },
+			{ type: "banner", title: "Your reviews are up to date for this version", description: "Every page's rating and the site's totals are counted." },
+			{ type: "actions", elements: [{ type: "button", label: "Show the list", action_id: "page", style: "primary", value: viewParts(view).join("|") }] },
+		],
+		toast: { message: "Update finished.", type: "success" },
+	};
+}
+
+/**
+ * A list screen. `stats` is the site record when the caller already has it (an action's own write
+ * returns it); otherwise it is read here. Calls: the record, the rows (one or two reads, more for a
+ * search), the review opened over the list, the page titles and the week's count.
+ */
+export async function renderList(ctx: PluginContext, b: Budget, view: View, stats: Stats | null, toast?: Toast): Promise<BlockResponse> {
+	if (!stats) {
+		spend(b);
+		stats = await getStats(ctx);
+	}
+	if (!upgradeDone(stats)) return progressScreen(view, stats, toast);
+	const waiting = view.kind === "waiting";
+	const openId = view.detailId || view.replyId || "";
+	let opened: Row | null = null;
+	if (openId) {
+		spend(b);
+		opened = asRecord(await ctx.storage.reviews.get(openId));
+		if (!opened.entry) opened = null;
+	}
+	const list = await listed(ctx, b, view, stats);
+	const titles = await titlesFor(ctx, b, opened ? [...list.items, opened] : list.items);
 	const actions: Array<[string, string]> = waiting
 		? [
 				["Read", "read"],
@@ -377,16 +451,16 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 				// Menus cannot confirm, so Delete opens the review, whose Delete button asks first.
 				["Delete", "ask_delete"],
 			];
-	const table = await tableRows(ctx, slice, current, actions);
-	const title = waiting ? "Waiting" : "Published";
+	const table = tableRows(list.items, titles, view, actions);
+	const total = waiting ? stats.pending + stats.changes : stats.published;
 	const empty = waiting
 		? { title: "Nothing waiting", description: "New reviews land here first." }
 		: { title: "No published reviews yet", description: "Approved reviews show here so you can reply or remove one." };
 	return {
 		blocks: [
-			{ type: "header", text: title },
-			...(waiting ? await setupBlocks(ctx) : []),
-			await listStats(ctx),
+			{ type: "header", text: waiting ? "Waiting" : "Published" },
+			...(waiting ? setupBlocks(ctx, stats.kitDone === true) : []),
+			await statsBlock(ctx, b, stats),
 			{
 				type: "form",
 				block_id: "find",
@@ -395,17 +469,17 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 						type: "text_input",
 						action_id: "q",
 						label: "Find",
-						initial_value: current.q,
+						initial_value: view.q,
 						placeholder: "Word in the review, a name or an email",
 					},
 				],
 				submit: { label: "Find", action_id: "find" },
 			},
-			...(await detailBlocks(ctx, current)),
-			...pager(current, page, pages, total),
+			...(openId ? detailBlocks(opened, openId, titles.get(asString(opened?.entry)) ?? "", view) : []),
+			...pager(view, list, total),
 			table.length
-				? { type: "table", page_action_id: `${current.kind}_page`, columns: COLUMNS, rows: table }
-				: { type: "empty", title: empty.title, description: current.q ? "No reviews match that search." : empty.description },
+				? { type: "table", page_action_id: `${view.kind}_page`, columns: COLUMNS, rows: table }
+				: { type: "empty", title: view.dir || view.q ? "No reviews on this page" : empty.title, description: view.q ? "No reviews match that search here." : empty.description },
 			!waiting
 				? {
 						type: "accordion",
@@ -415,31 +489,33 @@ export async function renderList(ctx: PluginContext, view: View, toast?: Toast):
 							{
 								type: "form",
 								block_id: "by_email",
-								fields: [
-									{
-										type: "text_input",
-										action_id: "email",
-										label: "Guest email",
-									},
-								],
+								fields: [{ type: "text_input", action_id: "email", label: "Guest email" }],
 								submit: { label: "Delete those reviews", action_id: "delete_email" },
 							},
 							{ type: "context", text: "This cannot be undone. A wrong address finds nothing." },
 						],
 					}
 				: null,
-		].filter(Boolean) as Array<Record<string, unknown>>,
+		].filter(Boolean) as Row[],
 		toast,
 	};
 }
 
-export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
-	const settings = await loadSettings(ctx);
-	const noneOpen = settings.site.length > 0 && settings.open.length === 0;
-	const noSchema = settings.site.length === 0;
+type SettingsView = { settings: Settings; site: SiteCollection[]; noMail: boolean };
+
+/** Settings: one read of every setting, the site's content types, and whether mail failed before. Parts the caller already has are passed in. */
+export async function renderSettings(ctx: PluginContext, routeCtx: RouteUi | undefined, have: Partial<SettingsView> = {}, toast?: Toast): Promise<BlockResponse> {
+	const [settings, site, noMail] = await Promise.all([
+		have.settings ?? loadSettings(ctx),
+		have.site ?? siteCollections(ctx),
+		have.noMail ?? noMailProvider(ctx),
+	]);
+	const known = new Set(site.map((item) => item.slug));
+	const open = settings.collections.filter((slug) => known.has(slug));
+	const noneOpen = site.length > 0 && open.length === 0;
+	const noSchema = site.length === 0;
 	// The admin's own request comes through the same host as a visitor's, so it shows whether EmDash gets visitor addresses here.
 	const guestsOff = settings.who === "anyone" && guestKey(asString(routeCtx?.requestMeta?.ip)) === null;
-	const noMail = await noMailProvider(ctx);
 	return {
 		blocks: [
 			{ type: "header", text: "Settings" },
@@ -455,9 +531,7 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 			guestsOff
 				? {
 						type: "actions",
-						elements: [
-							{ type: "link", label: "Guests and hosting", target: { kind: "external", url: `${installGuide(ctx)}#guests-and-hosting` } },
-						],
+						elements: [{ type: "link", label: "Guests and hosting", target: { kind: "external", url: `${installGuide(ctx)}#guests-and-hosting` } }],
 					}
 				: null,
 			noSchema
@@ -491,8 +565,8 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 										type: "checkbox",
 										action_id: "collections",
 										label: "Open for reviews",
-										options: settings.site.map((item) => ({ label: item.label, value: item.slug })),
-										initial_value: settings.open,
+										options: site.map((item) => ({ label: item.label, value: item.slug })),
+										initial_value: open,
 									},
 								],
 								submit: { label: "Save", action_id: "save_collections" },
@@ -506,14 +580,7 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 							{
 								type: "form",
 								block_id: "settings_moderation",
-								fields: [
-									{
-										type: "toggle",
-										action_id: "require_moderation",
-										label: "Approve reviews before they show",
-										initial_value: settings.moderate,
-									},
-								],
+								fields: [{ type: "toggle", action_id: "require_moderation", label: "Approve reviews before they show", initial_value: settings.moderate }],
 								submit: { label: "Save", action_id: "save_moderation" },
 							},
 						],
@@ -563,23 +630,18 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 											title: "This site has no email provider",
 											description:
 												"No notice will be sent until one is set up, for example the official Resend plugin. The dashboard card still shows what is waiting.",
-										} as Record<string, unknown>,
+										} as Row,
 									]
 								: []),
 							...(settings.notify && !settings.notifyTo.includes("@")
-								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Record<string, unknown>]
+								? [{ type: "banner", variant: "alert", title: "No address yet", description: "The notice is on but has nowhere to go. Add an address below." } as Row]
 								: []),
 							{ type: "context", text: "At most one short notice an hour. It has no review text and no link." },
 							{
 								type: "form",
 								block_id: "settings_notify",
 								fields: [
-									{
-										type: "toggle",
-										action_id: "notify",
-										label: "Email me when reviews are waiting",
-										initial_value: settings.notify,
-									},
+									{ type: "toggle", action_id: "notify", label: "Email me when reviews are waiting", initial_value: settings.notify },
 									{
 										type: "text_input",
 										action_id: "notify_to",
@@ -592,282 +654,306 @@ export async function renderSettings(ctx: PluginContext, routeCtx?: RouteUi, toa
 								submit: { label: "Save", action_id: "save_notify" },
 							},
 							{ type: "context", text: "Use Send a test notice to check that this site can send email." },
-							{
-								type: "actions",
-								elements: [{ type: "button", label: "Send a test notice", action_id: "test_notice" }],
-							},
+							{ type: "actions", elements: [{ type: "button", label: "Send a test notice", action_id: "test_notice" }] },
 						],
 					},
 				],
 			},
-		].filter(Boolean) as Array<Record<string, unknown>>,
+		].filter(Boolean) as Row[],
 		toast,
 	};
 }
 
-function show(ctx: PluginContext, page: string, view: View, routeCtx?: RouteUi, toast?: Toast): Promise<BlockResponse> {
-	if (kindOf(page) === "settings") return renderSettings(ctx, routeCtx, toast);
-	return renderList(ctx, view, toast);
+/**
+ * Most admin actions write, then draw the next screen. If drawing fails after the write, the answer
+ * must not turn into an error page: say what to do instead. Nothing here hides a failed write,
+ * because the message never claims the action worked.
+ */
+async function drawn(render: () => Promise<BlockResponse>): Promise<BlockResponse> {
+	try {
+		return await render();
+	} catch {
+		return {
+			blocks: [
+				{ type: "section", text: "This screen could not load. Reload the page to see where things stand." },
+				{ type: "actions", elements: [{ type: "link", label: "Waiting", target: { kind: "plugin-page", path: "/waiting" } }] },
+			],
+			toast: { message: "This screen could not load.", type: "error" },
+		};
+	}
 }
 
-export async function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?: RouteUi): Promise<BlockResponse> {
+export function handleAdmin(input: unknown, ctx: PluginContext, routeCtx?: RouteUi): Promise<BlockResponse> {
+	return drawn(() => routeAdmin(input, ctx, routeCtx));
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function routeAdmin(input: unknown, ctx: PluginContext, routeCtx?: RouteUi): Promise<BlockResponse> {
 	const raw = asRecord(input);
 	const type = asString(raw.type);
-	if (isDashboard(raw, routeCtx) && type !== "form_submit" && type !== "block_action") {
-		return renderDashboard(ctx);
-	}
-	const page = pageOf(raw);
-	const surface = kindOf(page);
+	if (isDashboard(raw, routeCtx) && type !== "form_submit" && type !== "block_action") return renderDashboard(ctx);
+	const surface = kindOf(asString(raw.page) || asString(raw.widget));
 	const kind: Kind = surface === "settings" ? "waiting" : surface;
-	const view = viewFrom(raw, kind);
+	const action = asString(raw.action_id);
+	const values = asRecord(raw.values);
+	const b = budget();
 
 	if (type === "form_submit") {
-		const values = asRecord(raw.values);
-		const action = asString(raw.action_id);
-		if (action === "find") {
-			return renderList(ctx, { kind, page: 1, q: asString(values.q) });
-		}
-		if (action === "delete_email") {
-			const email = asString(values.email).toLowerCase();
-			if (!email) {
-				return renderList(ctx, { kind: "published", page: 1, q: view.q }, { message: "Enter an email.", type: "error" });
-			}
-			// A privacy erase: page until none are left (storage answers 100 rows at a time).
-			const entries = new Set<string>();
-			let erased = 0;
-			for (;;) {
-				const batch = rows(await ctx.storage.reviews.query({ where: { email }, limit: 100 }));
-				if (!batch.length) break;
-				for (const row of batch) entries.add(asString(row.entry));
-				const gone = await ctx.storage.reviews.deleteMany(batch.map((row) => row.id));
-				if (!gone) break;
-				erased += gone;
-			}
-			// The same address can also sit in a pending edit on another guest's published review (one
-			// visitor address, two people). Clear that edit; the published review is the other person's and stays.
-			const cleared = new Set<string>();
-			for (;;) {
-				const batch = rows(await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 }));
-				const fresh = batch.filter((row) => !cleared.has(row.id));
-				if (!fresh.length) break;
-				for (const row of fresh) {
-					const { id, ...data } = row;
-					await ctx.storage.reviews.put(id, {
-						...data,
-						pending_change: false,
-						pending_stars: null,
-						pending_title: "",
-						pending_body: "",
-						pending_has_text: false,
-						pending_author: "",
-						pending_email: "",
-						rev: crypto.randomUUID(),
-					});
-					cleared.add(id);
-				}
-			}
-			if (!erased && !cleared.size) {
-				return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
-					message: "No reviews with that email.",
-					type: "info",
-				});
-			}
-			for (const entry of entries) await syncRating(ctx, entry);
-			return renderList(ctx, { kind: "published", page: 1, q: view.q }, {
-				message:
-					`Deleted ${erased} ${erased === 1 ? "review" : "reviews"}.` +
-					(cleared.size ? ` Removed ${cleared.size} waiting ${cleared.size === 1 ? "change" : "changes"} on other reviews.` : ""),
-				type: "success",
-			});
-		}
+		if (action === "find") return renderList(ctx, b, { kind, page: 1, q: asString(values.q), dir: "", bound: "" }, null);
+		if (action === "delete_email") return deleteByEmail(ctx, asString(values.email).toLowerCase());
 		if (action.startsWith("save_reply|")) {
-			const id = action.slice("save_reply|".length);
-			const row = asRecord(await ctx.storage.reviews.get(id));
-			if (!row.entry) {
-				return renderList(ctx, { kind: "published", page: view.page, q: view.q }, {
-					message: "That review no longer exists.",
-					type: "error",
-				});
-			}
-			await ctx.storage.reviews.put(id, {
-				...row,
-				owner_reply: plainText(values.body).slice(0, REPLY_MAX),
-				owner_reply_at: new Date().toISOString(),
-				rev: crypto.randomUUID(),
+			const [, id = "", ...rest] = action.split("|");
+			const view = { ...viewOf(rest, "published"), kind: "published" as const };
+			spend(b);
+			const done = await ctx.storage.reviews.updateIf(id, {
+				where: {},
+				set: { owner_reply: plainText(values.body).slice(0, REPLY_MAX), owner_reply_at: new Date().toISOString(), rev: crypto.randomUUID() },
 			});
-			return renderList(ctx, { kind: "published", page: view.page, q: view.q }, { message: "Reply saved.", type: "success" });
+			if (!done.applied) return renderList(ctx, b, view, null, { message: "That review no longer exists.", type: "error" });
+			return renderList(ctx, b, view, null, { message: "Reply saved.", type: "success" });
 		}
-		if (action === "save_collections") {
-			const site = await siteCollections(ctx);
-			const known = new Set(site.map((item) => item.slug));
-			const picked = asStringArray(values.collections).filter((slug) => known.has(slug));
-			await ctx.settings.set("collections", picked.join(","));
-			return renderSettings(ctx, routeCtx, {
-				message: picked.length ? "Content types saved." : "Reviews are closed. Tick a content type to open them.",
-				type: picked.length ? "success" : "info",
-			});
-		}
-		if (action === "save_moderation") {
-			await ctx.settings.set("require_moderation", asBoolean(values.require_moderation));
-			return renderSettings(ctx, routeCtx, { message: "Approval saved.", type: "success" });
-		}
-		if (action === "save_who") {
-			const who = asString(values.who) === "members" ? "members" : "anyone";
-			await ctx.settings.set("who", who);
-			if ("ask_guest_email" in values) {
-				await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
-			}
-			return renderSettings(ctx, routeCtx, { message: "Who can review saved.", type: "success" });
-		}
-		if (action === "save_guest_email") {
-			await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
-			return renderSettings(ctx, routeCtx, { message: "Guest email saved.", type: "success" });
-		}
-		if (action === "save_notify") {
-			const to = asString(values.notify_to);
-			// No default address exists for a plugin to send to, so a switched-on notice needs one.
-			if (asBoolean(values.notify) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-				return renderSettings(ctx, routeCtx, { message: "Add the email address the notice should go to.", type: "error" });
-			}
-			await ctx.settings.set("notify", asBoolean(values.notify));
-			await ctx.settings.set("notify_to", to);
-			return renderSettings(ctx, routeCtx, { message: "Saved.", type: "success" });
-		}
+		if (surface === "settings") return saveSettings(ctx, action, values, routeCtx);
 	}
 
-	if (type === "block_action" && asString(raw.action_id) === "test_notice") {
-		// Only on the owner's click: a sandboxed plugin always has ctx.email, and only a send shows whether
-		// the site has a mail provider. The result sets or clears the lasting banner.
-		const to = asString(await ctx.settings.get<string>("notify_to"));
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-			return renderSettings(ctx, routeCtx, { message: "Save the address the notice should go to first.", type: "error" });
+	if (type === "block_action") {
+		if (action === "test_notice") return testNotice(ctx, routeCtx);
+		if (action === "kit_again" || action === "kit_done") {
+			spend(b);
+			const stats = await moveStats(ctx, {}, { kit_done: action === "kit_done" });
+			const toast: Toast | undefined = action === "kit_done" ? { message: "Noted. The install guide stays linked here.", type: "success" } : undefined;
+			return renderList(ctx, b, { kind: "waiting", page: 1, q: "", dir: "", bound: "" }, stats, toast);
 		}
-		// At most one test a minute, so the button cannot flood an inbox. Compare-and-set: of many parallel
-		// clicks exactly one claims the minute and sends.
-		const wait: Toast = { message: "A test notice was just requested. Wait a minute before sending another.", type: "info" };
-		const seen = await ctx.kv.getVersioned<number>(TEST_AT);
-		if (seen && Date.now() - Number(seen.value) < 60_000) return renderSettings(ctx, routeCtx, wait);
-		const claim = await ctx.kv.compareAndSet(TEST_AT, seen?.revision ?? null, Date.now());
-		if (!claim.applied) return renderSettings(ctx, routeCtx, wait);
-		const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
-		const sent = await sendMail(ctx, {
-			to,
-			subject: "Test notice from Reviews",
-			text: `This is the test you asked for. Notices about waiting reviews${site ? ` on ${site}` : ""} will reach this address.`,
-		});
-		// Nothing could go out: free the minute so the owner can test again as soon as a provider is set up.
-		if (sent === "none") await ctx.kv.compareAndDelete(TEST_AT, claim.revision).catch(() => undefined);
-		const toasts: Record<typeof sent, Toast> = {
-			sent: { message: `Test notice sent to ${to}.`, type: "success" },
-			none: { message: "No notice was sent: this site has no email provider.", type: "error" },
-			failed: { message: "The test notice could not be sent. Check the site's email provider.", type: "error" },
-		};
-		return renderSettings(ctx, routeCtx, toasts[sent]);
+		if (action === "upgrade") {
+			const view = viewOf(asString(raw.value).split("|"), kind);
+			const { stats, done, finished } = await siteAndUpgrade(ctx, b, true);
+			if (done) return renderList(ctx, b, view, stats);
+			// The step used the budget: say where it got to without another read.
+			if (finished) return finishedScreen(view);
+			return progressScreen(view, stats, { message: "Another step is done. Press Continue until the lists show.", type: "info" });
+		}
+		if (action === "page") return renderList(ctx, b, viewOf(asString(raw.value).split("|"), kind), null);
+		if (action === "decide") return decide(ctx, b, raw.value);
+		// The table's own paging and sort control. No column is sortable and pages come from Next, so this shows the same page again.
+		if (action === `${kind}_page`) return pageLoad(ctx, b, { kind, page: 1, q: "", dir: "", bound: "" });
 	}
 
-	if (type === "block_action" && asString(raw.action_id) === "kit_again") {
-		await ctx.kv.set(KIT_DONE, false);
-		return renderList(ctx, { kind: "waiting", page: 1, q: "" });
-	}
-
-	if (type === "block_action" && asString(raw.action_id) === KIT_DONE) {
-		await ctx.kv.set(KIT_DONE, true);
-		return renderList(ctx, { kind: "waiting", page: 1, q: "" }, { message: "Noted. The install guide stays linked here.", type: "success" });
-	}
-
-	if (type === "block_action" && asString(raw.action_id) === "page") {
-		const [nextKind, nextPage, nextQ] = asString(raw.value).split("|");
-		return renderList(ctx, {
-			kind: nextKind === "published" ? "published" : "waiting",
-			page: Math.max(1, asNumber(nextPage) ?? 1),
-			q: decodeURIComponent(nextQ || ""),
-		});
-	}
-
-	if (type === "block_action" && asString(raw.action_id) === "decide") {
-		const { action, stamp, id, kind: fromStamp, page: keep, q } = parseStamped(raw.value);
-		const stay: View = { kind: fromStamp, page: keep, q };
-		if (action === "read" || action === "ask_delete") return renderList(ctx, { ...stay, detailId: id });
-		if (action === "reply") return renderList(ctx, { ...stay, kind: "published", replyId: id, detailId: id });
-		const row = asRecord(await ctx.storage.reviews.get(id));
-		if (!row.entry) return renderList(ctx, stay, { message: "That review no longer exists.", type: "error" });
-		if (asString(row.rev) !== stamp) {
-			return renderList(ctx, stay, { message: "That review changed after this page loaded. Check it again.", type: "error" });
-		}
-		if (action === "delete") {
-			await ctx.storage.reviews.delete(id);
-			await syncRating(ctx, asString(row.entry));
-			return renderList(ctx, stay, { message: "Review deleted.", type: "success" });
-		}
-		if (action === "unreply") {
-			await ctx.storage.reviews.put(id, { ...row, owner_reply: "", owner_reply_at: "", rev: crypto.randomUUID() });
-			return renderList(ctx, { ...stay, kind: "published" }, { message: "Reply removed.", type: "success" });
-		}
-		if (row.pending_change === true && action === "approve") {
-			await ctx.storage.reviews.put(id, {
-				...row,
-				stars: asNumber(row.pending_stars) ?? row.stars,
-				title: asString(row.pending_title),
-				body: asString(row.pending_body),
-				has_text: row.pending_has_text === true,
-				publishedAt: asString(row.publishedAt) || new Date().toISOString(),
-				author: asString(row.pending_author) || row.author,
-				email: row.pending_author ? asString(row.pending_email) : row.email,
-				pending_author: "",
-				pending_email: "",
-				pending_change: false,
-				pending_stars: null,
-				pending_title: "",
-				pending_body: "",
-				pending_has_text: false,
-				status: "published",
-				rev: crypto.randomUUID(),
-			});
-		} else if (row.pending_change === true && action === "reject") {
-			await ctx.storage.reviews.put(id, {
-				...row,
-				pending_change: false,
-				pending_stars: null,
-				pending_title: "",
-				pending_body: "",
-				pending_has_text: false,
-				pending_author: "",
-				pending_email: "",
-				status: "published",
-				rev: crypto.randomUUID(),
-			});
-		} else {
-			await ctx.storage.reviews.put(id, {
-				...row,
-				status: action === "approve" ? "published" : "rejected",
-				publishedAt: action === "approve" ? new Date().toISOString() : "",
-				rev: crypto.randomUUID(),
-			});
-		}
-		await syncRating(ctx, asString(row.entry));
-		return renderList(ctx, stay, {
-			message:
-				action === "approve"
-					? "Review published."
-					: row.pending_change === true
-						? "Change discarded. The live review stays."
-						: "Review taken off the site.",
-			type: "success",
-		});
-	}
-
-	return show(ctx, page, view, routeCtx);
+	if (surface === "settings") return renderSettings(ctx, routeCtx);
+	return pageLoad(ctx, b, { kind, page: 1, q: "", dir: "", bound: "" });
 }
 
+/** Opening a list: the site record, one upgrade step while 0.2.x data is brought over, otherwise one queued rating change, then the list. */
+async function pageLoad(ctx: PluginContext, b: Budget, view: View): Promise<BlockResponse> {
+	const { stats, done, finished } = await siteAndUpgrade(ctx, b, true);
+	if (finished) return finishedScreen(view);
+	if (!done) return progressScreen(view, stats);
+	// The list needs its rows (two reads at most here), the titles and the week's count.
+	await drainQueue(ctx, b, MAX_CALLS, 2 + AFTER_ROWS);
+	return renderList(ctx, b, view, stats);
+}
+
+async function decide(ctx: PluginContext, b: Budget, value: unknown): Promise<BlockResponse> {
+	const { action, stamp, id, view } = parseStamped(value);
+	if (action === "read" || action === "ask_delete") return renderList(ctx, b, { ...view, detailId: id }, null);
+	if (action === "reply") return renderList(ctx, b, { ...view, kind: "published", replyId: id, detailId: id }, null);
+	const now = new Date().toISOString();
+	const rev = crypto.randomUUID();
+	const gone = (row: Row | null) =>
+		renderList(ctx, b, view, null, row ? { message: "That review changed after this page loaded. Check it again.", type: "error" } : { message: "That review no longer exists.", type: "error" });
+	const read = async (): Promise<Row | null> => {
+		spend(b);
+		const row = asRecord(await ctx.storage.reviews.get(id));
+		return row.entry ? row : null;
+	};
+	const finish = async (before: Row, after: Row | null, message: string) => {
+		const change = minus(partOf(after), partOf(before));
+		const entry = asString(before.entry);
+		// The decision is stored. The counts follow it in single writes that never fail the answer.
+		if (asString(after?.status) === "published" && asString(before.status) !== "published") {
+			spend(b, 3);
+			await addToRating(ctx, entry, change);
+		} else {
+			spend(b);
+			await moveRating(ctx, entry, change);
+		}
+		spend(b);
+		const stats = await moveStats(ctx, statsChange(before, after));
+		return renderList(ctx, b, view, stats, { message, type: "success" });
+	};
+
+	if (action === "delete") {
+		spend(b);
+		const seen = await ctx.storage.reviews.getVersioned(id);
+		const row = seen ? asRecord(seen.value) : null;
+		if (!row?.entry) return gone(null);
+		if (asString(row.rev) !== stamp) return gone(row);
+		spend(b);
+		if (!(await ctx.storage.reviews.compareAndDelete(id, seen!.revision)).applied) return gone(row);
+		return finish(row, null, "Review deleted.");
+	}
+	if (action === "unreply") {
+		spend(b);
+		const done = await ctx.storage.reviews.updateIf(id, { where: { rev: stamp }, set: { owner_reply: "", owner_reply_at: "", rev } });
+		if (!done.applied) return gone(await read());
+		return renderList(ctx, b, { ...view, kind: "published" }, null, { message: "Reply removed.", type: "success" });
+	}
+	if (action !== "approve" && action !== "reject") return renderList(ctx, b, view, null);
+
+	// A waiting review: one write guarded by the stamp and the status.
+	spend(b);
+	const plain = await ctx.storage.reviews.updateIf(id, {
+		where: { rev: stamp, status: "pending" },
+		set: action === "approve" ? { status: "published", publishedAt: now, rev } : { status: "rejected", publishedAt: "", rev },
+	});
+	if (plain.applied) {
+		const after = asRecord(plain.data);
+		return finish({ ...after, status: "pending" }, after, action === "approve" ? "Review published." : "Review taken off the site.");
+	}
+	// Otherwise a published review with a change waiting, or a stale click.
+	const row = await read();
+	if (!row || asString(row.rev) !== stamp || row.pending_change !== true) return gone(row);
+	const cleared = { pending_change: false, pending_stars: null, pending_title: "", pending_body: "", pending_has_text: false, pending_author: "", pending_email: "", status: "published", rev };
+	const set =
+		action === "approve"
+			? {
+					...cleared,
+					stars: asNumber(row.pending_stars) ?? row.stars,
+					title: asString(row.pending_title),
+					body: asString(row.pending_body),
+					has_text: row.pending_has_text === true,
+					publishedAt: asString(row.publishedAt) || now,
+					author: asString(row.pending_author) || row.author,
+					email: row.pending_author ? asString(row.pending_email) : row.email,
+				}
+			: cleared;
+	spend(b);
+	const done = await ctx.storage.reviews.updateIf(id, { where: { rev: stamp }, set });
+	if (!done.applied) return gone(row);
+	return finish(row, asRecord(done.data), action === "approve" ? "Review published." : "Change discarded. The live review stays.");
+}
+
+/**
+ * A privacy erase: every review with that guest email, and the same address in a waiting change on
+ * another guest's review (one visitor address, two people). Up to 100 reviews a press; Continue
+ * deletes the rest. Calls: the waiting changes (read, write), the reviews (read, delete), the site
+ * counts, the queued page ratings, and the Published list (rows, titles, week).
+ * ponytail: clearing a waiting change writes the row read one call earlier, so a change the guest
+ * sends in that moment is cleared with it.
+ */
+async function deleteByEmail(ctx: PluginContext, email: string): Promise<BlockResponse> {
+	const view: View = { kind: "published", page: 1, q: "", dir: "", bound: "" };
+	const b = budget();
+	if (!email) return renderList(ctx, b, view, null, { message: "Enter an email.", type: "error" });
+	spend(b);
+	const edits = rows(await ctx.storage.reviews.query({ where: { pending_email: email }, limit: 100 }));
+	let extra: StatsChange | null = null;
+	if (edits.length) {
+		spend(b);
+		const cleared = edits.map(({ id, ...data }) => ({
+			id,
+			data: { ...data, pending_change: false, pending_stars: null, pending_title: "", pending_body: "", pending_has_text: false, pending_author: "", pending_email: "", rev: crypto.randomUUID() },
+		}));
+		await ctx.storage.reviews.putMany(cleared);
+		extra = sumChanges(edits.map((row, i) => statsChange(row, cleared[i]!.data)));
+	}
+	const done = await eraseRows(ctx, b, { email }, 1 + AFTER_ROWS, extra);
+	if (!done.erased && !edits.length) return renderList(ctx, b, view, done.stats, { message: "No reviews with that email.", type: "info" });
+	const message =
+		`Deleted ${done.erased} ${done.erased === 1 ? "review" : "reviews"}.` +
+		(edits.length ? ` Removed ${edits.length} waiting ${edits.length === 1 ? "change" : "changes"} on other reviews.` : "") +
+		(done.more ? " More remain: press Delete those reviews again." : "");
+	return renderList(ctx, b, view, done.stats, { message, type: done.more ? "info" : "success" });
+}
+
+async function saveSettings(ctx: PluginContext, action: string, values: Row, routeCtx?: RouteUi): Promise<BlockResponse> {
+	if (action === "save_collections") {
+		const site = await siteCollections(ctx);
+		const known = new Set(site.map((item) => item.slug));
+		const picked = asStringArray(values.collections).filter((slug) => known.has(slug));
+		await ctx.settings.set("collections", picked.join(","));
+		return renderSettings(ctx, routeCtx, { site }, {
+			message: picked.length ? "Content types saved." : "Reviews are closed. Tick a content type to open them.",
+			type: picked.length ? "success" : "info",
+		});
+	}
+	if (action === "save_moderation") {
+		await ctx.settings.set("require_moderation", asBoolean(values.require_moderation));
+		return renderSettings(ctx, routeCtx, {}, { message: "Approval saved.", type: "success" });
+	}
+	if (action === "save_who") {
+		await ctx.settings.set("who", asString(values.who) === "members" ? "members" : "anyone");
+		if ("ask_guest_email" in values) await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
+		return renderSettings(ctx, routeCtx, {}, { message: "Who can review saved.", type: "success" });
+	}
+	if (action === "save_guest_email") {
+		await ctx.settings.set("ask_guest_email", asBoolean(values.ask_guest_email));
+		return renderSettings(ctx, routeCtx, {}, { message: "Guest email saved.", type: "success" });
+	}
+	if (action === "save_notify") {
+		const to = asString(values.notify_to);
+		// No default address exists for a plugin to send to, so a switched-on notice needs one.
+		if (asBoolean(values.notify) && !EMAIL.test(to)) {
+			return renderSettings(ctx, routeCtx, {}, { message: "Add the email address the notice should go to.", type: "error" });
+		}
+		await ctx.settings.set("notify", asBoolean(values.notify));
+		await ctx.settings.set("notify_to", to);
+		return renderSettings(ctx, routeCtx, {}, { message: "Saved.", type: "success" });
+	}
+	return renderSettings(ctx, routeCtx);
+}
+
+/**
+ * Only on the owner's click: a sandboxed plugin always has ctx.email, and only a send shows whether
+ * the site has a mail provider. The result sets or clears the lasting banner. At most 7 calls.
+ */
+async function testNotice(ctx: PluginContext, routeCtx?: RouteUi): Promise<BlockResponse> {
+	const settings = await loadSettings(ctx);
+	if (!EMAIL.test(settings.notifyTo)) {
+		return renderSettings(ctx, routeCtx, { settings }, { message: "Save the address the notice should go to first.", type: "error" });
+	}
+	// At most one test a minute, so the button cannot flood an inbox. Compare-and-set: of many parallel
+	// clicks exactly one claims the minute and sends.
+	const wait: Toast = { message: "A test notice was just requested. Wait a minute before sending another.", type: "info" };
+	const seen = await ctx.kv.getVersioned<number>(TEST_AT);
+	if (seen && Date.now() - Number(seen.value) < 60_000) return renderSettings(ctx, routeCtx, { settings }, wait);
+	const claim = await ctx.kv.compareAndSet(TEST_AT, seen?.revision ?? null, Date.now());
+	if (!claim.applied) return renderSettings(ctx, routeCtx, { settings }, wait);
+	const site = asString(ctx.site?.name).replace(/\s+/g, " ").trim().slice(0, 80);
+	const sent = await sendMail(ctx, {
+		to: settings.notifyTo,
+		subject: "Test notice from Reviews",
+		text: `This is the test you asked for. Notices about waiting reviews${site ? ` on ${site}` : ""} will reach this address.`,
+	});
+	// Nothing could go out: free the minute so the owner can test again as soon as a provider is set up.
+	if (sent === "none") await ctx.kv.compareAndDelete(TEST_AT, claim.revision).catch(() => undefined);
+	const toasts: Record<typeof sent, Toast> = {
+		sent: { message: `Test notice sent to ${settings.notifyTo}.`, type: "success" },
+		none: { message: "No notice was sent: this site has no email provider.", type: "error" },
+		failed: { message: "The test notice could not be sent. Check the site's email provider.", type: "error" },
+	};
+	// The send just told whether mail works; a failed send leaves the earlier answer as it was.
+	return renderSettings(ctx, routeCtx, { settings, ...(sent === "failed" ? {} : { noMail: sent === "none" }) }, toasts[sent]);
+}
+
+/** The dashboard card: the site record, or two counts while it is being made; then one queued rating change. */
 export async function renderDashboard(ctx: PluginContext): Promise<BlockResponse> {
-	const waiting = await waitingCount(ctx);
+	const b = budget();
+	const { stats, done } = await siteAndUpgrade(ctx, b, false);
+	let waiting = stats.pending + stats.changes;
+	if (!stats.ready) {
+		spend(b, 2);
+		const [pending, changed] = await Promise.all([
+			ctx.storage.reviews.count({ status: "pending" }),
+			ctx.storage.reviews.count({ status: "published", pending_change: true }),
+		]);
+		waiting = pending + changed;
+	}
+	if (done) await drainQueue(ctx, b, MAX_CALLS);
 	return {
 		blocks: [
 			{ type: "stats", items: [{ label: "Waiting", value: String(waiting) }] },
-			{
-				type: "actions",
-				elements: [{ type: "link", label: "Open Waiting", target: { kind: "plugin-page", path: "/waiting" } }],
-			},
+			{ type: "actions", elements: [{ type: "link", label: "Open Waiting", target: { kind: "plugin-page", path: "/waiting" } }] },
 		],
 	};
 }
+

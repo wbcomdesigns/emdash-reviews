@@ -17,9 +17,9 @@ Each screen opens with three numbers: **Waiting**, **Published this week** and *
 | Note | **Guest** for a visitor without an account, **Member** for a signed-in member. **Change waiting** when someone rewrote a live review |
 | Decision | A **Decide** menu |
 
-The table shows 25 reviews at a time. Use **Next** and **Previous** to move, and the "In this list" number to see the total.
+The table shows 25 reviews at a time, newest first. Use **Next** and **Previous** to move; the line above the table gives the total and the page number.
 
-**Find** looks in the headline, the text, the name and your reply. Type a word or a name and choose **Find**. It searches the newest 500 reviews of each kind.
+**Find** looks in the headline, the text, the name, a guest email and your reply. Type a word or a name and choose **Find**. Each press searches a few hundred reviews, newest first; when older reviews were not searched yet, the line above the table says so and **Search older** carries on from there.
 
 ## Waiting
 
@@ -66,7 +66,7 @@ Use this for a privacy request from someone who gave you their email.
 2. Type the address under **Guest email**.
 3. Choose **Delete those reviews**.
 
-You see "Deleted 2 reviews." or "No reviews with that email." This removes the reviews for good and updates the averages. The address must match exactly (capitals do not matter). It works only for reviews written while **Ask guests for an email** was on, because other reviews carry no address. It removes every match in one go. Two guests can share one visitor address (an office, a phone network): if that person's change is waiting on the other guest's review, the change is removed and the other guest's published review stays as it was, and the message adds "Removed 1 waiting change on other reviews." **Find** also matches a guest's email. A review with a mistyped address finds nothing.
+You see "Deleted 2 reviews." or "No reviews with that email." This removes the reviews for good and updates the averages. The address must match exactly (capitals do not matter). It works only for reviews written while **Ask guests for an email** was on, because other reviews carry no address. It removes up to 100 matches per press; when more remain, the message says "More remain" and you press **Delete those reviews** again. Page ratings that could not be updated in the same press are updated over your next few admin visits. Two guests can share one visitor address (an office, a phone network): if that person's change is waiting on the other guest's review, the change is removed and the other guest's published review stays as it was, and the message adds "Removed 1 waiting change on other reviews." **Find** also matches a guest's email. A review with a mistyped address finds nothing.
 
 ## Two admins at once
 

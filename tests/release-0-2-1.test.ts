@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { admin, ana, openSite, withPosts } from "./site";
+import { admin, ana, finishUpgrade, install, openSite, withPosts } from "./site";
 
 let dispose: (() => Promise<void>) | undefined;
 afterEach(async () => {
@@ -10,9 +10,11 @@ afterEach(async () => {
 
 const fromIp = (ip: string | null, method = "POST") => ({ method, meta: { ip, userAgent: null, referer: null, geo: null } });
 
-async function site() {
+/** A fresh install, or (`fresh: false`) a site whose rows a test seeds the way 0.2.x stored them, then upgrades. */
+async function site({ fresh = true } = {}) {
 	const s = await openSite();
 	dispose = s.dispose;
+	if (fresh) await install(s.rt);
 	const posts = await withPosts(s.rt);
 	const guestWrite = (ip: string | null, input: Record<string, unknown> = {}) =>
 		s.call("write_guest", { collection: "posts", id: posts.live, stars: 4, name: "Sam", body: "Good.", ...input }, fromIp(ip));
@@ -86,8 +88,8 @@ describe("guests need a visitor address (owner decision 2026-10-16)", () => {
 });
 
 describe("waiting reviews never hide published ones", () => {
-	async function seeded(waiting: number, published: number) {
-		const s = await site();
+	async function seeded(waiting: number, published: number, more?: (s: Awaited<ReturnType<typeof site>>) => Promise<void>) {
+		const s = await site({ fresh: false });
 		const put = (id: string, data: Record<string, unknown>) => s.rt.fixtures.plugin.storage("reviews", id, data);
 		const base = { entry: `posts:${s.live}`, collection: "posts", entryId: s.live, guest: true, has_text: true, rev: "r" };
 		const stamp = (n: number) => new Date(Date.UTC(2026, 9, 1) + n * 1000).toISOString();
@@ -99,6 +101,8 @@ describe("waiting reviews never hide published ones", () => {
 			await put(`posts:${s.live}:v-w${n}`, { ...base, author: `Flood ${n}`, stars: 1, body: `Waiting ${n}`, status: "pending", createdAt: stamp(100_000 + n) });
 		}
 		await put(`posts:${s.live}:v-last`, { ...base, author: "Last", stars: 5, body: "Approve me", status: "pending", createdAt: stamp(1) });
+		await more?.(s);
+		await finishUpgrade(s.rt);
 		return s;
 	}
 
@@ -109,8 +113,8 @@ describe("waiting reviews never hide published ones", () => {
 		expect((listed.items as unknown[]).length).toBe(3);
 		const row = await rt.inspect.storage.get<{ rev: string }>("reviews", `posts:${live}:v-last`);
 		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|posts:${live}:v-last` });
-		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ count: 4, average: 4.3 });
-		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 4, total: 4 });
+		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ v: 3, s4: 3, s5: 1, t: 4 });
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 4, total: 4, average: 4.3 });
 		const waiting = await rt.admin.loadPage("/waiting");
 		expect(blocksText(waiting)).toContain('"value":"600"');
 		expect(blocksText(waiting)).toContain("600 reviews. Page 1 of 24.");
@@ -120,7 +124,7 @@ describe("waiting reviews never hide published ones", () => {
 		const { call, live, rt } = await seeded(0, 620);
 		const row = await rt.inspect.storage.get<{ rev: string }>("reviews", `posts:${live}:v-last`);
 		await call("admin", { type: "block_action", action_id: "decide", value: `approve|${row!.rev}|posts:${live}:v-last` });
-		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ count: 621 });
+		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ v: 3, s4: 620, s5: 1 });
 		// Show more pages up to 50 (500 reviews); the count and total stay exact.
 		expect(await call("list", { collection: "posts", id: live, page: 63 }, { method: "GET" })).toMatchObject({
 			count: 621,
@@ -138,9 +142,12 @@ describe("waiting reviews never hide published ones", () => {
 	});
 
 	it("shows nothing for an unpublished page or a closed content type", async () => {
-		const { call, rt, live, draft } = await seeded(0, 2);
-		await rt.fixtures.plugin.storage("ratings", `posts:${draft}`, { collection: "posts", entryId: draft, average: 5, count: 1 });
-		await rt.fixtures.plugin.storage("ratings", `posts:${live}`, { collection: "posts", entryId: live, average: 4, count: 2 });
+		// A review on a page that was published then, and is a draft now.
+		const { call, live, draft } = await seeded(0, 2, (s) =>
+			s.rt.fixtures.plugin.storage("reviews", `posts:${s.draft}:v-x`, {
+				entry: `posts:${s.draft}`, collection: "posts", entryId: s.draft, status: "published", stars: 5, body: "Was public", has_text: true, rev: "r", createdAt: "2026-10-01T00:00:00Z",
+			}),
+		);
 		expect(await call("list", { collection: "posts", id: draft }, { method: "GET" })).toMatchObject({ items: [], count: 0 });
 		const summary = (await call("summary", { collection: "posts", ids: `${live},${draft}` }, { method: "GET" })) as {
 			ratings: Record<string, unknown>;
@@ -153,8 +160,8 @@ describe("waiting reviews never hide published ones", () => {
 });
 
 describe("list reads one page, not every review", () => {
-	it("sorts by stars, serves bars from the rating row, and rebuilds a 0.2.0 rating row once", async () => {
-		const { call, rt, live } = await site();
+	it("sorts by stars, serves bars from the rating row, and the upgrade rebuilds a 0.2.0 rating row", async () => {
+		const { call, rt, live } = await site({ fresh: false });
 		const put = (id: string, data: Record<string, unknown>) => rt.fixtures.plugin.storage("reviews", id, data);
 		const base = { entry: `posts:${live}`, collection: "posts", entryId: live, status: "published", rev: "r" };
 		await put(`posts:${live}:a`, { ...base, author: "A", stars: 2, body: "Two", has_text: true, createdAt: "2026-10-01T00:00:00Z" });
@@ -162,12 +169,13 @@ describe("list reads one page, not every review", () => {
 		await put(`posts:${live}:c`, { ...base, author: "C", stars: 4, title: "", body: "", has_text: false, createdAt: "2026-10-03T00:00:00Z" });
 		// A rating row as 0.2.0 stored it: no bars, no text count.
 		await rt.fixtures.plugin.storage("ratings", `posts:${live}`, { collection: "posts", entryId: live, average: 3.7, count: 3 });
+		await finishUpgrade(rt);
 		const newest = (await call("list", { collection: "posts", id: live }, { method: "GET" })) as Record<string, unknown>;
 		expect(newest).toMatchObject({ count: 3, total: 2, bars: { 1: 0, 2: 1, 3: 0, 4: 1, 5: 1 } });
 		expect((newest.items as Array<{ author: string }>).map((i) => i.author)).toEqual(["B", "A"]);
 		const lowest = (await call("list", { collection: "posts", id: live, sort: "lowest" }, { method: "GET" })) as { items: Array<{ author: string }> };
 		expect(lowest.items.map((i) => i.author)).toEqual(["A", "B"]);
-		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ bars: [0, 1, 0, 1, 1], text_count: 2 });
+		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toMatchObject({ v: 3, s1: 0, s2: 1, s3: 0, s4: 1, s5: 1, t: 2 });
 	});
 });
 
@@ -185,12 +193,14 @@ describe("round 2 checks", () => {
 		expect(page).toContain('"label":"Published this week","value":"1"');
 	});
 
-	it("summary rebuilds a rating row 0.2.0 deleted while published reviews remained", async () => {
-		const { call, rt, live } = await site();
+	it("the upgrade rebuilds a rating row 0.2.0 deleted while published reviews remained", async () => {
+		const { call, rt, live } = await site({ fresh: false });
 		await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-a`, {
 			entry: `posts:${live}`, collection: "posts", entryId: live, status: "published", stars: 4, body: "Kept",
 			has_text: true, rev: "r", createdAt: "2026-10-01T00:00:00Z",
 		});
+		expect(await call("summary", { collection: "posts", ids: live }, { method: "GET" })).toMatchObject({ ratings: {} });
+		await finishUpgrade(rt);
 		expect(await call("summary", { collection: "posts", ids: live }, { method: "GET" })).toMatchObject({ ratings: { [live]: { average: 4, count: 1 } } });
 	});
 
@@ -208,20 +218,24 @@ describe("member check and erasure", () => {
 		expect(await call("me", {}, { method: "GET" })).toMatchObject({ ok: false, error: { code: "SIGN_IN_REQUIRED" } });
 	});
 
-	it("deletes every review with a guest email, past the first 100", async () => {
-		const { call, rt, live } = await site();
+	it("deletes every review with a guest email, past the first 100, in two presses", async () => {
+		const { call, rt, live } = await site({ fresh: false });
 		for (let n = 0; n < 130; n += 1) {
 			await rt.fixtures.plugin.storage("reviews", `posts:${live}:v-e${n}`, {
 				entry: `posts:${live}`, collection: "posts", entryId: live, status: n % 2 ? "published" : "pending",
 				stars: 3, body: `Mail ${n}`, has_text: true, email: "sam@example.com", rev: "r", createdAt: "2026-10-01T00:00:00Z",
 			});
 		}
-		const done = (await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "sam@example.com" }, page: "/published" })) as {
-			toast: { message: string };
-		};
-		expect(done.toast.message).toBe("Deleted 130 reviews.");
+		await finishUpgrade(rt);
+		const press = async () =>
+			((await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "sam@example.com" }, page: "/published" })) as { toast: { message: string } }).toast.message;
+		expect(await press()).toBe("Deleted 100 reviews. More remain: press Delete those reviews again.");
+		expect(await press()).toBe("Deleted 30 reviews.");
 		expect(await rt.inspect.storage.list("reviews")).toHaveLength(0);
-		expect(await rt.inspect.storage.get("ratings", `posts:${live}`)).toBeNull();
+		// Rating changes the presses could not apply wait in the queue; the dashboard card applies them.
+		for (let i = 0; i < 10 && (await rt.inspect.storage.list("rating_queue")).length; i += 1) await rt.admin.loadWidget("waiting");
+		expect(await call("list", { collection: "posts", id: live }, { method: "GET" })).toMatchObject({ count: 0, total: 0 });
+		expect(await rt.inspect.storage.get("stats", "site")).toMatchObject({ pending: 0, s3: 0 });
 	}, 60_000);
 
 	it("erases a guest's own reviews and their pending edit on another guest's review, past 100 rows", async () => {
@@ -243,10 +257,10 @@ describe("member check and erasure", () => {
 		}
 		const found = blocksText(await call("admin", { type: "form_submit", action_id: "find", values: { q: "ana@example.com" }, page: "/waiting" }));
 		expect(found).toContain("Ana");
-		const done = (await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "ana@example.com" }, page: "/published" })) as {
-			toast: { message: string };
-		};
-		expect(done.toast.message).toBe("Deleted 120 reviews. Removed 1 waiting change on other reviews.");
+		const press = async () =>
+			((await call("admin", { type: "form_submit", action_id: "delete_email", values: { email: "ana@example.com" }, page: "/published" })) as { toast: { message: string } }).toast.message;
+		expect(await press()).toBe("Deleted 100 reviews. Removed 1 waiting change on other reviews. More remain: press Delete those reviews again.");
+		expect(await press()).toBe("Deleted 20 reviews.");
 		const left = await rt.inspect.storage.list<Record<string, unknown>>("reviews");
 		expect(left.map((row) => row.id)).toEqual([bId]);
 		expect(left[0].data).toMatchObject({ status: "published", author: "Ben", email: "ben@example.com", body: "Ben's words.", stars: 5, pending_change: false, pending_email: "", pending_author: "", pending_body: "" });
