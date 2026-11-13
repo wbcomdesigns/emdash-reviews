@@ -1,5 +1,8 @@
 import { createPluginRuntimeTestHost } from "@emdash-cms/plugin-test";
 
+import { SITE, STATS } from "../src/counts";
+import { countingSite } from "../src/upgrade";
+
 export const member = (id: string, role = 10) => ({
 	id,
 	email: `${id}@example.com`,
@@ -56,4 +59,15 @@ export async function finishUpgrade(rt: Runtime, max = 60): Promise<number> {
 		await rt.transport.invokeRoute("admin", { type: "block_action", action_id: "upgrade", page: "/waiting", value: "waiting|1|||" });
 	}
 	throw new Error("The upgrade did not finish");
+}
+
+/**
+ * Since plugin-test 0.2.12 (EmDash 1.5) the host runs plugin:install on the empty site it starts
+ * with, which records a new site with nothing to bring over, and nothing a test can reach deletes
+ * it. A site with reviews from before 0.3.0 is seeded as EmDash 1.5 leaves one instead: install ran
+ * with the reviews there, so the count starts from the beginning. A registry update runs no install;
+ * the first upgrade step then writes this same record (startSite).
+ */
+export async function asOldSite(rt: Awaited<ReturnType<typeof openSite>>["rt"]): Promise<void> {
+	await rt.fixtures.plugin.storage(STATS, SITE, countingSite());
 }

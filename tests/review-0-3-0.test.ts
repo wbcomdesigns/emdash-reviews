@@ -4,7 +4,7 @@ import { countBridgeCalls, MAX_BRIDGE_CALLS } from "./bridge-count";
 import { PluginBridge } from "@emdash-cms/cloudflare/sandbox";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { admin as root, finishUpgrade, install, member, openSite, withPosts } from "./site";
+import { admin as root, asOldSite, finishUpgrade, install, member, openSite, withPosts } from "./site";
 
 /**
  * 0.3.0 keeps counts by in-database increments in the same call as the write. Each test here makes
@@ -43,6 +43,7 @@ async function open({ fresh = true } = {}) {
 	const s = await openSite();
 	dispose = s.dispose;
 	if (fresh) await install(s.rt);
+	else await asOldSite(s.rt);
 	const posts = await withPosts(s.rt);
 	const entry = `posts:${posts.live}`;
 	const write = (who: string, input: Row = {}) => s.call("write", { collection: "posts", id: posts.live, stars: 4, body: "Good.", ...input }, s.as(member(who)));

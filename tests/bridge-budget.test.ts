@@ -3,7 +3,7 @@ import { countBridgeCalls, MAX_BRIDGE_CALLS } from "./bridge-count";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { member, openSite } from "./site";
+import { asOldSite, member, openSite } from "./site";
 
 /**
  * Bridge calls per plugin call, at the worst realistic case of each entry point.
@@ -203,6 +203,7 @@ beforeAll(async () => {
 		const published = [...rowsById.values()].filter((row) => row.entryId === post && row.status === "published");
 		await s.rt.fixtures.plugin.storage("ratings", `posts:${post}`, ratingFor(post, published));
 	}
+	await asOldSite(s.rt);
 }, 600_000);
 
 afterAll(async () => {
