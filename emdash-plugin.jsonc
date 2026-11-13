@@ -18,6 +18,8 @@
 		"changelog": { "file": "./docs/registry/changelog.md" }
 	},
 	"release": {
+		// The lowest EmDash this release supports; the registry checks it before an install.
+		"requires": { "env:emdash": ">=1.2.0" },
 		"artifacts": {
 			"icon": { "file": "./icon.png" },
 			"banner": { "file": "./images/banner.png" },

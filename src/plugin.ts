@@ -212,16 +212,34 @@ async function setLive(ctx: PluginContext, collection: string, id: unknown, live
 	await ctx.storage[RATINGS]!.updateIf(entryKey(collection, key), { where: { v: V }, set: { live } }).catch(() => undefined);
 }
 
+/**
+ * One setup step that never throws: EmDash 1.5 disables a plugin whose install or activate hook
+ * throws, which would take reviews off the site over a missed schedule. The error is logged instead:
+ * the site record is made on first use, and activating again schedules the hourly task.
+ */
+async function setUp(ctx: PluginContext, step: () => Promise<unknown>): Promise<void> {
+	try {
+		await step();
+	} catch (error) {
+		ctx.log.error("WB Reviews could not finish setting up. Deactivate and activate it again.", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+const scheduleNotify = (ctx: PluginContext) => setUp(ctx, async () => ctx.cron?.schedule("notify", { schedule: NOTIFY_CRON }));
+
 const plugin: SandboxedPlugin = {
 	hooks: {
+		// Two independent steps: a failed schedule still makes the site record, and the other way round.
 		"plugin:install": {
 			handler: async (_event, ctx) => {
-				await ctx.cron?.schedule("notify", { schedule: NOTIFY_CRON });
-				await startSite(ctx);
+				await scheduleNotify(ctx);
+				await setUp(ctx, () => startSite(ctx));
 			},
 		},
 		"plugin:activate": {
-			handler: async (_event, ctx) => void (await ctx.cron?.schedule("notify", { schedule: NOTIFY_CRON })),
+			handler: async (_event, ctx) => scheduleNotify(ctx),
 		},
 		cron: {
 			handler: async (event, ctx) => {
@@ -235,9 +253,10 @@ const plugin: SandboxedPlugin = {
 		"content:afterUnpublish": {
 			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, false),
 		},
-		// Restored from the trash: live again only when it comes back published.
+		// Restored from the trash: EmDash always restores into a draft (docs: hooks reference), so no badge
+		// until it is published again, which runs content:afterPublish.
 		"content:afterRestore": {
-			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, asRecord(event.content).status === "published"),
+			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, false),
 		},
 		"content:afterDelete": {
 			handler: async (event, ctx) => setLive(ctx, event.collection, event.id, false),
