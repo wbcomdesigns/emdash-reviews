@@ -88,6 +88,9 @@ export function emptySite(kitDone = false): Record<string, unknown> {
 	return { v: V, seq: 0, useq: 0, step: STAT_FIELDS.length, ready: true, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, kit_done: kitDone, upgrade: { phase: DONE } };
 }
 
+/** The site record of a site that has reviews from before 0.3.0: counted again from the start. */
+export const countingSite = () => ({ v: V, seq: 0, useq: 0, step: 0, ready: false, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, upgrade: { phase: "kit" } });
+
 /**
  * The first site record. With no reviews there is nothing to bring over, so it starts finished
  * (keeping a 0.2.x "visitor pages are set up" answer): three calls. Otherwise it starts counting
@@ -99,8 +102,7 @@ export async function startSite(ctx: PluginContext): Promise<Record<string, unkn
 		const made = await ctx.storage[STATS]!.compareAndSet(SITE, null, site).catch(() => ({ applied: false }));
 		return made.applied ? site : null;
 	}
-	const counting = { v: V, seq: 0, useq: 0, step: 0, ready: false, pending: 0, changes: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, upgrade: { phase: "kit" } };
-	await ctx.storage[STATS]!.compareAndSet(SITE, null, counting).catch(() => undefined);
+	await ctx.storage[STATS]!.compareAndSet(SITE, null, countingSite()).catch(() => undefined);
 	return null;
 }
 

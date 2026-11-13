@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { admin, ana, finishUpgrade, install, openSite, withPosts } from "./site";
+import { admin, ana, asOldSite, finishUpgrade, install, openSite, withPosts } from "./site";
 
 let dispose: (() => Promise<void>) | undefined;
 afterEach(async () => {
@@ -15,6 +15,7 @@ async function site({ fresh = true } = {}) {
 	const s = await openSite();
 	dispose = s.dispose;
 	if (fresh) await install(s.rt);
+	else await asOldSite(s.rt);
 	const posts = await withPosts(s.rt);
 	const guestWrite = (ip: string | null, input: Record<string, unknown> = {}) =>
 		s.call("write_guest", { collection: "posts", id: posts.live, stars: 4, name: "Sam", body: "Good.", ...input }, fromIp(ip));
