@@ -407,7 +407,7 @@ describe("independent review fixes", () => {
 		expect((await state()).after).toBe(ahead.after);
 	});
 
-	it("L4: a page restored from the trash is live again only when it comes back published", async () => {
+	it("L4: a page restored from the trash shows no badge until it is published again", async () => {
 		const site = await open();
 		await site.rt.fixtures.plugin.setting("require_moderation", false);
 		await site.write("ana", { stars: 5 });
@@ -421,9 +421,12 @@ describe("independent review fixes", () => {
 		// EmDash restores into a draft: no badge.
 		await site.rt.actions.content.restore("posts", site.live);
 		expect(await until(false)).toBe(false);
-		// A restore that comes back published shows the badge again.
+		// The restore event never makes a page live, whatever status it carries (a restore is always a draft).
 		await site.rt.transport.invokeHook("content:afterRestore", { collection: "posts", content: { id: site.live, status: "published" } });
-		expect(await live()).toBe(true);
+		expect(await live()).toBe(false);
+		// Publishing it again shows the badge.
+		await site.rt.actions.content.publish("posts", site.live);
+		expect(await until(true)).toBe(true);
 	});
 
 	it("L5: a busy live page keeps its 0.2.x rating while it is counted field by field", async () => {

@@ -2,6 +2,14 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.3.1]
+
+No new permission. The site kit is unchanged: copy it with tag v0.3.1 if you like, the files are the same as 0.3.0.
+
+- Fix      - A setup error during install or activate is logged instead of leaving the plugin switched off on EmDash 1.5.
+- Fix      - A page restored from the trash shows no rating badge until it is published again.
+- Compat   - The registry now checks that the site runs EmDash 1.2.0 or later before it installs this release.
+
 ## [0.3.0]
 
 Every page, action and visitor request now fits Cloudflare's limit of 10 requests per plugin call. After updating, open Reviews in the admin: it brings 0.2 data over in a few steps (Continue, or once an hour) while you keep moderating and visitors keep seeing reviews. No new permission. Copy the kit again after you update.

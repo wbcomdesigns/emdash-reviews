@@ -19,7 +19,7 @@ Checked on EmDash 1.3.1 with the `blog` template, on Node and on Cloudflare Work
    ```bash
    kit="$(mktemp -d)" &&
      git clone --depth 1 \
-       --branch v0.3.0 \
+       --branch v0.3.1 \
        https://github.com/wbcomdesigns/emdash-reviews \
        "$kit/emdash-reviews" &&
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
@@ -31,4 +31,4 @@ Checked on EmDash 1.3.1 with the `blog` template, on Node and on Cloudflare Work
 
 After every update, run step 2 with the new tag.
 
-Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.3.0/docs/website/getting-started/install.md
+Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.3.1/docs/website/getting-started/install.md

@@ -1,3 +1,11 @@
+## 0.3.1
+
+No new permission. The site kit is unchanged (tag v0.3.1 has the same files as 0.3.0).
+
+- Fix      - A setup error during install or activate is logged instead of switching the plugin off on EmDash 1.5.
+- Fix      - A page restored from the trash shows no rating badge until it is published again.
+- Compat   - Needs EmDash 1.2.0 or later; the registry checks this before an install.
+
 ## 0.3.0
 
 - Improve: every page, admin action and visitor request fits Cloudflare's 10 requests per plugin call. Counts move with each review instead of re-reading every review of the page.
