@@ -6,7 +6,7 @@ You are the one agent for this repo. Read this, then work.
 
 1. Load the `emdash-plugin-development` skill.
 2. EmDash's own guides in the lab: `.agents/skills/building-emdash-site` and `.agents/skills/creating-plugins`.
-3. `~/code/emdash-plugin-starter/EMDASH-SUPPORT.md`.
+3. `wbcomdesigns/emdash-plugin-starter`/EMDASH-SUPPORT.md`.
 4. `SCOPE.md` here. The Cloudflare section (0.3.0) and the corrections section win over older lines.
 5. `PLAN.md` here.
 
