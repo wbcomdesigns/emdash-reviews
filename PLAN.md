@@ -81,4 +81,4 @@ After step 9, do #19 (in-text Reviews block, prove first).
 
 ## Before any task
 
-Read `EMDASH-SUPPORT.md` in `~/code/emdash-plugin-starter` (`wbcomdesigns/emdash-plugin-starter`). If a task depends on a row marked "not proven", prove it on the lab first. If the proof fails, stop and tell the owner on the issue. Do not build around it.
+Read `EMDASH-SUPPORT.md` in `wbcomdesigns/emdash-plugin-starter` (`wbcomdesigns/emdash-plugin-starter`). If a task depends on a row marked "not proven", prove it on the lab first. If the proof fails, stop and tell the owner on the issue. Do not build around it.
