@@ -9,17 +9,17 @@ Stop the dev server and start it again. **Registry** now shows in the admin menu
 
 **2. The plugin is the engine. Visitor pages come from its site kit.** A registry plugin cannot add pages to your site. Until you copy the kit, its addresses (for example `/account/reviews/`) show your site's 404 page. That is expected. The kit copy below takes one command.
 
-Checked on EmDash 1.3.1 with the `blog` template, on Node and on Cloudflare Workers (registry install).
+Checked with the `blog` template on Node and Cloudflare Workers.
 
 ## Install
 
-1. Admin, Registry, search **WB Reviews**, Install, then accept the permissions.
+1. Admin, Registry, search **WB Reviews**, Install, then accept the permissions. On Cloudflare, run `npm run deploy` after every install or update, or other copies of the site answer "Plugin route not found" (emdash-cms/emdash#4865).
 2. From your site's root folder:
 
    ```bash
    kit="$(mktemp -d)" &&
      git clone --depth 1 \
-       --branch v0.3.1 \
+       --branch v0.3.2 \
        https://github.com/wbcomdesigns/emdash-reviews \
        "$kit/emdash-reviews" &&
      "$kit/emdash-reviews/scripts/add-to-site.sh" .
@@ -31,4 +31,4 @@ Checked on EmDash 1.3.1 with the `blog` template, on Node and on Cloudflare Work
 
 After every update, run step 2 with the new tag.
 
-Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.3.1/docs/website/getting-started/install.md
+Guide: https://github.com/wbcomdesigns/emdash-reviews/blob/v0.3.2/docs/website/getting-started/install.md
