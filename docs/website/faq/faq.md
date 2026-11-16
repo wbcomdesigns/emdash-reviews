@@ -61,3 +61,7 @@ Yes. Use it alone or with any of them. They share two small kit files; keep the 
 ## Is there a paid version?
 
 No. Everything described in these guides is free.
+
+## Will Google show review stars for my posts?
+
+Not today. WB Reviews adds the rating to the page's structured data and joins it to the article EmDash already describes there. Search engines decide which kinds of pages get stars, and Google does not show review stars for blog posts or articles.

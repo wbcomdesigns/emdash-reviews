@@ -227,6 +227,31 @@ async function setUp(ctx: PluginContext, step: () => Promise<unknown>): Promise<
 	}
 }
 
+/** Cron task name prefix for a deleted page whose reviews did not fit in one call. */
+const PURGE = "purge-";
+// Every 5 minutes until the page's reviews are gone, then the task cancels itself.
+const PURGE_CRON = "*/5 * * * *";
+
+/**
+ * A page was deleted for good: erase its reviews and its rating row. Erasing stops at the call budget
+ * with one call kept for the last step: the rating row's delete when nothing is left, otherwise a
+ * task (`purge-<page key>` with other characters as `_`, since task names allow only letters,
+ * digits, dashes and underscores; the exact key travels in its data) that goes on every 5 minutes and cancels itself when done. Each call erases
+ * up to 200 reviews, so a page with 500 takes the hook and two runs.
+ * ponytail: the page's legacy title row (`entries`, reviews from before 0.3.0) is left behind; it
+ * holds a title only and nothing reads it once the reviews are gone.
+ */
+async function purgePage(ctx: PluginContext, entry: string, task: string | null): Promise<void> {
+	const b = budget();
+	const done = await eraseRows(ctx, b, { entry }, 2);
+	if (done.more) {
+		if (!task) await ctx.cron?.schedule(PURGE + entry.replace(/[^A-Za-z0-9_-]/g, "_"), { schedule: PURGE_CRON, data: { entry } });
+		return;
+	}
+	await ctx.storage[RATINGS]!.delete(entry).catch(() => false);
+	if (task) await ctx.cron?.cancel(task);
+}
+
 const scheduleNotify = (ctx: PluginContext) => setUp(ctx, async () => ctx.cron?.schedule("notify", { schedule: NOTIFY_CRON }));
 
 const plugin: SandboxedPlugin = {
@@ -244,6 +269,7 @@ const plugin: SandboxedPlugin = {
 		cron: {
 			handler: async (event, ctx) => {
 				if (event.name === "notify") await hourly(ctx);
+				else if (event.name.startsWith(PURGE) && asString(event.data?.entry)) await purgePage(ctx, asString(event.data?.entry), event.name);
 			},
 		},
 		// Rating badges show only for public pages. EmDash tells the plugin when a page changes state.
@@ -258,24 +284,33 @@ const plugin: SandboxedPlugin = {
 		"content:afterRestore": {
 			handler: async (event, ctx) => setLive(ctx, event.collection, asRecord(event.content).id, false),
 		},
+		// Trashed: no badge until restored and published. Deleted for good: its reviews and rating go too.
 		"content:afterDelete": {
-			handler: async (event, ctx) => setLive(ctx, event.collection, event.id, false),
+			handler: async (event, ctx) => {
+				if (!event.permanent) return setLive(ctx, event.collection, event.id, false);
+				if (event.collection && event.id) await purgePage(ctx, entryKey(event.collection, event.id), null);
+			},
 		},
 		// Adds the rating to the page's structured data. No kit code needed for this part.
 		"page:metadata": {
 			handler: async (event, ctx) => {
-				const content = event.page.content;
+				const page = event.page;
+				const content = page.content;
 				if (!content) return null;
 				const rating = readRating(await ctx.storage[RATINGS]!.get(entryKey(content.collection, content.id)));
 				if (!rating?.count) return null;
+				// The rating joins the page's own node by its @id: EmDash core describes an article page as a
+				// BlogPosting with the id `<canonical>#article`, and its WebPage as `<canonical>` (core page/jsonld.ts).
+				const article = page.pageType === "article" && Boolean(page.canonical);
 				return {
 					kind: "jsonld",
 					id: "wbcom-reviews-rating",
 					graph: {
 						"@context": "https://schema.org",
-						"@type": "CreativeWork",
-						name: event.page.pageTitle || event.page.title || undefined,
-						url: event.page.canonical || event.page.url,
+						"@type": article ? "BlogPosting" : "WebPage",
+						"@id": article ? `${page.canonical}#article` : page.canonical || page.url,
+						name: page.pageTitle || page.title || undefined,
+						url: page.canonical || page.url,
 						aggregateRating: {
 							"@type": "AggregateRating",
 							ratingValue: rating.average,
