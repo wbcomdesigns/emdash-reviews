@@ -29,7 +29,7 @@ In the **Decide** menu:
 
 - **Read:** opens the review above the table, with the full text. **Close** returns to the list.
 - **Approve:** publishes the review. You see "Review published."
-- **Reject:** takes a new review off the queue. It never shows. You see "Review taken off the site."
+- **Reject:** takes a new review off the queue. It never shows. You see "Review rejected. It will not be shown."
 
 Read also shows **Approve** and **Reject** buttons that ask you to confirm first ("Publish this review?" and "Take this review off the queue?"). The menu choices act at once.
 

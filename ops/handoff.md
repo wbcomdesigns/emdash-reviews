@@ -1,18 +1,14 @@
-# Handoff: WB Reviews (2026-11-15)
+# Handoff: WB Reviews (2026-11-16)
 
 Live: **0.3.1** on the EmDash registry as `@vapvarun.bsky.social/reviews`. Public page: https://plugins.emdashcms.com/plugins/@vapvarun.bsky.social/reviews
 
 Test on a fresh `create-emdash` blog site (registry install, kit from the release tag) and on the Cloudflare test site. On Cloudflare, redeploy after a registry install or update before judging anything (emdash-cms/emdash#4865).
 
-## Next: 0.3.2
+## In review: 0.3.2
 
-Milestone `0.3.2` on GitHub holds the work, in this order:
+Branch `0.3.2`, pull request "WB Reviews 0.3.2" (not merged, not tagged, not published). Milestone `0.3.2`: #69 composite indexes, #70 delete reviews and rating when a page is deleted for good, #74 registry install text and shared kit (wbcom-shared 5 CSS, 6 script), #76 long words overflowing the post page, #77 Decide off screen at phone width, #78 line breaks lost, #79 reject toast, #80 structured data joined to the article node; plus the Settings guest banner wording (it sees only the admin's own request, so it says it cannot tell).
 
-- #69 Composite storage indexes for filtered and sorted queries
-- #70 Delete a page's reviews and rating when the page is permanently deleted
-- #74 Next release: registry install text and shared kit
-
-Then the release gate (`gate.sh`, which also checks that no public file carries machine paths and that the README is the product landing page), an independent walk on Node and Cloudflare, and publish only with the owner's go-ahead.
+Next: the coordinator's walk on Node and Cloudflare, then publish only with the owner's go-ahead.
 
 ## For the starter
 
@@ -24,6 +20,8 @@ Then the release gate (`gate.sh`, which also checks that no public file carries 
 - A queued rating change is lost if the call that claimed it dies before writing it.
 - A rating row made by an approval (no visitor write first) has no page address; My reviews looks it up live, up to the call budget.
 - Paging by `createdAt` skips a row with exactly the bound's millisecond.
+- A page deleted for good is cleared 200 reviews per call by a `purge-<page key>` cron task every 5 minutes; its legacy `entries` title row (reviews from before 0.3.0) is left behind.
+- Settings sees only the admin's own request, so it cannot know whether visitors' requests carry an address.
 - The 0.2.2 kit shows its generic error line for BUSY (review item L6, left by decision: the changelog says copy the kit again).
 
 ## How to work

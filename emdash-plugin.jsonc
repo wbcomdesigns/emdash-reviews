@@ -38,7 +38,26 @@
 	"allowedHosts": [],
 	"storage": {
 		"reviews": {
-			"indexes": ["status", "entry", "member_id", "createdAt", "email", "pending_change", "stars", "has_text", "pending_email", "publishedAt"]
+			"indexes": [
+				"status",
+				"entry",
+				"member_id",
+				"createdAt",
+				"email",
+				"pending_change",
+				"stars",
+				"has_text",
+				"pending_email",
+				"publishedAt",
+				// One per query that filters and orders (0.3.2): the page list by newest and by stars,
+				// My reviews, the admin lists, a waiting change, and the week's count.
+				["entry", "status", "has_text", "createdAt"],
+				["entry", "status", "has_text", "stars"],
+				["member_id", "createdAt"],
+				["status", "createdAt"],
+				["status", "pending_change", "createdAt"],
+				["status", "publishedAt"]
+			]
 		},
 		"ratings": {
 			"indexes": ["collection", "ready"]

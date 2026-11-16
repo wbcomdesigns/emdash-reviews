@@ -78,6 +78,9 @@ const MEASURED: Record<string, number> = {
 	"admin form save_guest_email": 4,
 	"admin form save_notify": 5,
 	"admin block test_notice": 6,
+	"hook content:afterDelete (permanent, 500 reviews)": 8,
+	"cron purge (500 reviews, run)": 7,
+	"cron purge (last run)": 9,
 };
 
 const POSTS = 120;
@@ -613,6 +616,26 @@ describe("admin actions", () => {
 
 	it("send a test notice", async () => {
 		await measure("admin block test_notice", () => admin({ type: "block_action", action_id: "test_notice", page: "/settings" }));
+	});
+
+	// Last: it erases the busiest page.
+	it("a page with 500 reviews deleted for good: the hook, then 5-minute runs, until none are left", async () => {
+		const post = posts[0]!;
+		const entry = `posts:${post}`;
+		const left = async () => (await s.rt.inspect.storage.list<Row>("reviews")).filter((r) => r.data.entry === entry).length;
+		await measure("hook content:afterDelete (permanent, 500 reviews)", () => s.rt.transport.invokeHook("content:afterDelete", { collection: "posts", id: post, permanent: true }));
+		expect(await left()).toBeGreaterThan(0);
+		// The task carries the page key in its data (EmDash cron passes it to the hook); its name is a hash.
+		const purges = async () => (await s.rt.inspect.scheduledTasks()).filter((t) => String(t.name).startsWith("purge-"));
+		const [task] = await purges();
+		const name = String(task?.name);
+		const run = () => s.rt.transport.invokeHook("cron", { name, data: { entry } });
+		await measure("cron purge (500 reviews, run)", run);
+		await measure("cron purge (last run)", run);
+		for (let i = 0; i < 10 && (await left()) > 0; i += 1) await within(run);
+		expect(await left()).toBe(0);
+		expect(await s.rt.inspect.storage.get("ratings", entry)).toBeNull();
+		expect(await purges()).toHaveLength(0);
 	});
 });
 

@@ -62,7 +62,7 @@ import { mine as S } from "../lib/reviews-strings";
 						.map((item) => {
 							const name = esc(item.entry_title || S.gone);
 							const title = item.entry_url ? `<a href="${esc(item.entry_url)}">${name}</a>` : name;
-							return `<li class="wb-item"><p><strong>${title}</strong> <span class="wb-muted">${esc(STATUS[String(item.status)] ?? item.status)}</span></p><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(reviews.outOf5(Number(item.stars) || 0))}</span> ${esc(item.body)}</p></li>`;
+							return `<li class="wb-item"><p><strong>${title}</strong> <span class="wb-muted">${esc(STATUS[String(item.status)] ?? item.status)}</span></p><p class="wbr-text"><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(reviews.outOf5(Number(item.stars) || 0))}</span> ${esc(item.body)}</p></li>`;
 						})
 						.join("")}</ul>`
 				: `<div class="wb-empty"><p><strong>${esc(S.emptyTitle)}</strong></p><p class="wb-muted">${esc(S.emptyHint)}</p></div>`;

@@ -180,6 +180,23 @@
 	border-block-start: 1px solid var(--wb-border);
 }
 
+/* A long unbroken word or link wraps inside the card. A grid's auto column grows to its widest
+   word, and a theme heading rule (overflow-wrap: break-word) does not shrink that width, so the
+   columns are capped at the box. */
+.wb[data-wbr],
+.wb[data-wbr-mine],
+.wb[data-wbr] .wb-list,
+.wb[data-wbr-mine] .wb-list,
+.wb[data-wbr] .wb-item,
+.wb[data-wbr-mine] .wb-item {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+/* Review text and the owner reply keep the line breaks and blank lines the writer typed. */
+.wbr-text {
+	white-space: pre-line;
+}
+
 /* The date stays on one line next to the name at 390. */
 .wbr-date {
 	white-space: nowrap;

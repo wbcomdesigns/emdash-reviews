@@ -194,7 +194,7 @@ const zone = (await getSiteSettings())?.timezone || "";
 		const html = items
 			.map(
 				(item) =>
-					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted wbr-date">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}${item.body ? `<p>${esc(item.body)}</p>` : ""}${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p>${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
+					`<li class="wb-item"><p><span class="wbr-stars" aria-hidden="true">${starText(item.stars)}</span><span class="wb-sr">${esc(S.outOf5(Number(item.stars) || 0))}</span> <strong>${esc(item.author || S.member)}</strong> <span class="wb-muted wbr-date">${esc(day(item.createdAt))}</span></p>${item.title ? `<h3>${esc(item.title)}</h3>` : ""}${item.body ? `<p class="wbr-text">${esc(item.body)}</p>` : ""}${item.owner_reply ? `<blockquote class="wbr-reply"><p class="wb-muted">${esc(S.ownerReply)}${item.owner_reply_at ? ` · ${esc(day(item.owner_reply_at))}` : ""}</p><p class="wbr-text">${esc(item.owner_reply)}</p></blockquote>` : ""}</li>`,
 			)
 			.join("");
 		if (replace) list.innerHTML = `<ul class="wb-list">${html}</ul>`;

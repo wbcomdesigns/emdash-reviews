@@ -78,13 +78,17 @@ describe("guests need a visitor address (owner decision 2026-10-16)", () => {
 		).toMatchObject({ ok: true });
 	});
 
-	it("says on Settings when guests are asked to sign in", async () => {
+	// 0.3.2: the plugin sees only the admin's own request, so with no address on it Settings says it
+	// cannot tell and how to check, never that guests are blocked (a proxy may set the header for visitors only).
+	it("says on Settings that it cannot tell, not that guests are blocked, when the admin's visit has no address", async () => {
 		const { call } = await site();
 		const off = await call("admin", { type: "page_load", page: "/settings" }, { ...fromIp(null), user: admin });
-		expect(blocksText(off)).toContain("Guests are asked to sign in on this hosting");
+		expect(blocksText(off)).toContain("This page cannot tell whether guests can review");
+		expect(blocksText(off)).toContain("open a post signed out");
 		expect(blocksText(off)).toContain("trustedProxyHeaders");
+		expect(blocksText(off)).not.toContain("Guests are asked to sign in on this hosting");
 		const on = await call("admin", { type: "page_load", page: "/settings" }, { ...fromIp("198.51.100.7"), user: admin });
-		expect(blocksText(on)).not.toContain("Guests are asked to sign in on this hosting");
+		expect(blocksText(on)).not.toContain("cannot tell whether guests");
 	});
 });
 

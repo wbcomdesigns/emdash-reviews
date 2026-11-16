@@ -90,7 +90,7 @@ Three roles, in this order: guest (private window), member (subscriber), admin. 
 
 | ID | Do | Expect |
 | --- | --- | --- |
-| H-1 | Guest on a host that passes no visitor address (Node without `trustedProxyHeaders`) | Sign in to write a review. instead of the form. Settings shows Guests are asked to sign in on this hosting |
+| H-1 | Guest on a host that passes no visitor address (Node without `trustedProxyHeaders`) | Sign in to write a review. instead of the form. Settings shows This page cannot tell whether guests can review, with how to check |
 | H-2 | Same with `trustedProxyHeaders` set and the header sent | Guest form shows and a review waits for approval |
 | H-3 | 600 waiting reviews and 3 published on one page | The 3 show, the rating stays, Waiting says 600 |
 | H-4 | Save the Email tab, then Send a test notice, on a site with no mail provider | Save says Saved. and sends nothing. The test says No notice was sent and the tab shows This site has no email provider until a test works |
