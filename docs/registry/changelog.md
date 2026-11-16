@@ -1,6 +1,27 @@
-## 0.3.1
+## 0.3.2
 
-No new permission. The site kit is unchanged (tag v0.3.1 has the same files as 0.3.0).
+No new permission. New storage indexes are built when the plugin first loads; a write can be asked to try again for that moment.
+
+- Improve  - Decide is the first column on Waiting and Published, so it shows at phone width; long names and titles are shortened there.
+- Improve  - The structured-data rating joins the page's own article data.
+- Improve  - Settings says it cannot tell whether guests can review from your own visit, and how to check, instead of claiming they cannot.
+- Fix      - A long word or link in a review wraps in its card; the page no longer scrolls sideways.
+- Fix      - Line breaks in reviews and replies show on the page and in My reviews.
+- Fix      - Rejecting a waiting review says "Review rejected. It will not be shown."
+- Fix      - Deleting a page for good deletes its reviews and rating, in steps for a busy page.
+
+Copy the kit again after you update, from your site's root folder:
+
+```bash
+kit="$(mktemp -d)" &&
+  git clone --depth 1 \
+    --branch v0.3.2 \
+    https://github.com/wbcomdesigns/emdash-reviews \
+    "$kit/emdash-reviews" &&
+  "$kit/emdash-reviews/scripts/add-to-site.sh" .
+```
+
+## 0.3.1
 
 - Fix      - A setup error during install or activate is logged instead of switching the plugin off on EmDash 1.5.
 - Fix      - A page restored from the trash shows no rating badge until it is published again.
@@ -8,30 +29,7 @@ No new permission. The site kit is unchanged (tag v0.3.1 has the same files as 0
 
 ## 0.3.0
 
-- Improve: every page, admin action and visitor request fits Cloudflare's 10 requests per plugin call. Counts move with each review instead of re-reading every review of the page.
-- Improve: Waiting and Published page by date; Find searches a few hundred reviews per press. Delete all my reviews and delete by email work in steps.
-- Fix: reviews sent at the same moment are each counted once. Ratings 0.2.0 lost are rebuilt.
-- After updating, open Reviews in the admin: it brings 0.2 data over in a few steps while you keep moderating. No new permission.
-
-Copy the kit again after you update, from your site's root folder:
-
-```bash
-kit="$(mktemp -d)" &&
-  git clone --depth 1 \
-    --branch v0.3.0 \
-    https://github.com/wbcomdesigns/emdash-reviews \
-    "$kit/emdash-reviews" &&
-  "$kit/emdash-reviews/scripts/add-to-site.sh" .
-```
-
-## 0.2.2
-
-- Fix: re-running scripts/add-to-site.sh on a site whose post page and post card already show WB Reviews says the lines are already in place.
-
-## 0.2.1
-
-- Security: guests review only where the host passes the visitor address (Cloudflare or trustedProxyHeaders); otherwise they sign in. IPv6 counts by /64.
-- New: Waiting shows Set up visitor pages. scripts/add-to-site.sh copies the kit and prints the lines to paste.
-- Fix: waiting reviews no longer hide published ones or break the rating; unpublished pages show nothing.
+- Improve  - Every page, admin action and visitor request fits Cloudflare's 10 requests per plugin call.
+- Fix      - Reviews sent at the same moment are each counted once. Ratings 0.2.0 lost are rebuilt.
 
 Older versions: https://github.com/wbcomdesigns/emdash-reviews/blob/main/CHANGELOG.md

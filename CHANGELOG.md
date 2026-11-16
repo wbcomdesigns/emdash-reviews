@@ -2,6 +2,20 @@
 
 Versions match `package.json`, the git tag and the registry release. Newest first.
 
+## [0.3.2]
+
+No new permission. Copy the kit again after you update (tag v0.3.2): the review card, My reviews and the shared files changed. The update adds storage indexes; EmDash builds them the first time the plugin loads, and writes can answer "try again" for that moment.
+
+- Improve  - Waiting and Published put the Decide button in the first column, so it shows at phone width, and long names and page titles are shortened in the table (the review's own view shows them in full).
+- Improve  - The rating in the page's structured data is joined to the article EmDash already describes, instead of a separate item.
+- Improve  - Settings no longer says guests are asked to sign in when it cannot know: it says it cannot tell from your own visit and how to check.
+- Improve  - Storage indexes for each list that filters and sorts, so lists stay quick on sites with many reviews.
+- Fix      - A long unbroken word or link in a review wraps inside its card instead of making the whole page scroll sideways.
+- Fix      - Line breaks and blank lines in a review and in the owner reply show on the page and in My reviews.
+- Fix      - Rejecting a waiting review says "Review rejected. It will not be shown." instead of "Review taken off the site."
+- Fix      - Deleting a page for good also deletes its reviews and rating; a page with many reviews is cleared in steps every few minutes.
+- Dev      - Shared kit files updated to wbcom-shared 5 (CSS) and 6 (script).
+
 ## [0.3.1]
 
 No new permission. The site kit is unchanged: copy it with tag v0.3.1 if you like, the files are the same as 0.3.0.
