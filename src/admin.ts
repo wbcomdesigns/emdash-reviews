@@ -36,6 +36,8 @@ const REPO = "https://github.com/wbcomdesigns/emdash-reviews";
 const TEST_AT = "test_notice_at";
 const REPLY_MAX = 1000;
 const CLIP = 80;
+// Name and page title cells: a long name pushed the Decide button out of the frame at 768.
+const CELL = 32;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Calls a list screen needs after its rows: the page titles and the week's count. */
 const AFTER_ROWS = 2;
@@ -79,10 +81,11 @@ function wrapLong(text: string): string {
 	return text.replace(/\S{32,}/g, (word) => word.match(/.{1,32}/g)?.join("​") ?? word);
 }
 
-function clip(text: string): string {
+/** One line of at most `max` characters for a table cell; the item's own view shows all of it. */
+function clip(text: string, max = CLIP): string {
 	const clean = text.replace(/\s+/g, " ").trim();
 	if (!clean) return "";
-	const cut = clean.length > CLIP ? `${clean.slice(0, CLIP).trimEnd()}...` : clean;
+	const cut = clean.length > max ? `${clean.slice(0, max).trimEnd()}...` : clean;
 	return wrapLong(cut);
 }
 
@@ -269,9 +272,9 @@ function tableRows(items: Row[], titles: Map<string, string>, view: View, action
 		const text = reviewText(row);
 		return {
 			review: clip(text.full) || "Stars only",
-			on: titles.get(asString(row.entry)) || unknown,
+			on: clip(titles.get(asString(row.entry)) || unknown, CELL),
 			stars: text.stars ? `${text.stars} of 5` : "-",
-			author: asString(row.author),
+			author: clip(asString(row.author), CELL),
 			note: noteFor(row) || "-",
 			action: {
 				type: "menu",
@@ -283,14 +286,16 @@ function tableRows(items: Row[], titles: Map<string, string>, view: View, action
 	});
 }
 
-// No column is sortable: the order is newest first, the same order the pages follow.
+// No column is sortable: the order is newest first, the same order the pages follow. Decision comes
+// first: EmDash's admin table scrolls sideways inside its frame at phone width with no hint, so a last
+// column was off screen at 390.
 const COLUMNS = [
+	{ key: "action", label: "Decision", format: "element" },
 	{ key: "review", label: "Review" },
-	{ key: "on", label: "Page" },
 	{ key: "stars", label: "Stars" },
 	{ key: "author", label: "Author" },
+	{ key: "on", label: "Page" },
 	{ key: "note", label: "Note" },
-	{ key: "action", label: "Decision", format: "element" },
 ];
 
 function pager(view: View, list: Listed, total: number | null): Row[] {
@@ -531,7 +536,9 @@ export async function renderSettings(ctx: PluginContext, routeCtx: RouteUi | und
 	const open = settings.collections.filter((slug) => known.has(slug));
 	const noneOpen = site.length > 0 && open.length === 0;
 	const noSchema = site.length === 0;
-	// The admin's own request comes through the same host as a visitor's, so it shows whether EmDash gets visitor addresses here.
+	// Only the admin's own request is visible here. With no address on it the plugin cannot tell what
+	// visitors' requests carry (a proxy may set trustedProxyHeaders for them and not for this one), so
+	// the banner says it cannot tell and how to check, never that guests are blocked.
 	const guestsOff = settings.who === "anyone" && guestKey(asString(routeCtx?.requestMeta?.ip)) === null;
 	return {
 		blocks: [
@@ -539,10 +546,10 @@ export async function renderSettings(ctx: PluginContext, routeCtx: RouteUi | und
 			guestsOff
 				? {
 						type: "banner",
-						title: "Guests are asked to sign in on this hosting",
+						title: "This page cannot tell whether guests can review",
 						description:
-							"Guests need a host that tells EmDash the visitor's address: Cloudflare, or trustedProxyHeaders in the site config. Members can still review.",
-						variant: "alert",
+							"Your own visit reached EmDash without a visitor address, and the plugin sees only your visit. Guests can review when the host passes the address (Cloudflare, or trustedProxyHeaders behind a proxy that sets that header). To check, open a post signed out: a form means guests can review, \"Sign in to write a review.\" means they cannot. Members can always review.",
+						variant: "default",
 					}
 				: null,
 			guestsOff
@@ -826,7 +833,7 @@ async function decide(ctx: PluginContext, b: Budget, value: unknown): Promise<Bl
 	});
 	if (plain.applied) {
 		const after = asRecord(plain.data);
-		return finish({ ...after, status: "pending" }, after, action === "approve" ? "Review published." : "Review taken off the site.");
+		return finish({ ...after, status: "pending" }, after, action === "approve" ? "Review published." : "Review rejected. It will not be shown.");
 	}
 	// Otherwise a published review with a change waiting, or a stale click.
 	const row = await read();

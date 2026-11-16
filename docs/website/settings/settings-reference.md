@@ -31,7 +31,7 @@ Guest reviews always wait for approval, even when this is off. Reviews from sign
 
 Save shows "Who can review saved."
 
-Under the options you read two notes: "Anyone is the default. A guest review always waits for approval." and "Guests are counted by their visitor address, which the host must pass to EmDash. Where it does not, guests are asked to sign in." When this site gets no visitor address, a banner at the top of Settings says **Guests are asked to sign in on this hosting**. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
+Under the options you read two notes: "Anyone is the default. A guest review always waits for approval." and "Guests are counted by their visitor address, which the host must pass to EmDash. Where it does not, guests are asked to sign in." When your own visit to Settings reaches EmDash without a visitor address, a banner at the top says **This page cannot tell whether guests can review**, with how to check: open a post signed out; a form means guests can review. See [Guests and hosting](../getting-started/install.md#guests-and-hosting).
 
 ## Email
 
